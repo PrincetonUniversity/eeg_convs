@@ -1,5 +1,4 @@
 require 'paths'
-local pretty = require 'pl.pretty'
 local M = {}
 
 M.fileExists = function(fname)
@@ -59,8 +58,9 @@ end
 M.saveFileNameFromDriversArgs = function(args,base_name)
 	local filename = ''
 	local driverPrefix = base_name 
+	local gitCommitHash = M.getGitCommitNumAndHash()
 	local rngSeedString = 'rng_' .. args.rng_seed .. '.th7'
-	filename = paths.concat(dotrc.save_dir,driverPrefix)
+	filename = paths.concat(dotrc.save_dir,driverPrefix, gitCommitHash)
 	if not paths.dir(filename) then
 		paths.mkdir(filename)
 	end
@@ -79,37 +79,9 @@ M.copyArgsRemoveUnsupportedMatioTypes = function (source)
 	return target
 end
 
-M.saveFileNameFromDriversLogregArgs = function(args)
-	local filename = ''
-	local simDataString = args.sim_data.num_channels .. '_' .. args.sim_data.num_timebins .. '_' ..  args.sim_data.num_replays_per_trial  .. 'replays'
-	local driverPrefix = 'logreg' .. (args.sim_data.num_examples_per_class * args.sim_data.num_classes)
-	local rngSeedString = 'rng_' .. args.rng_seed
-	local snrString = 'SNR_' .. args.sim_data.snr .. '.th7'
-	filename = paths.concat(dotrc.save_dir,driverPrefix, simDataString, rngSeedString)
-	if not paths.dir(filename) then
-		paths.mkdir(filename)
-	end
-	filename = paths.concat(filename,snrString)
-	print(filename)
-	return  filename
-end
 
 
 
-M.saveFileNameFromDriversBasicArgs = function(args)
-	local filename = ''
-	local simDataString = args.sim_data.num_channels .. '_' .. args.sim_data.num_timebins .. '_' ..  args.sim_data.num_replays_per_trial  .. 'replays'
-	local driverPrefix = 'basic' .. (args.sim_data.num_examples_per_class * args.sim_data.num_classes)
-	local rngSeedString = 'rng_' .. args.rng_seed
-	local snrString = 'SNR_' .. args.sim_data.snr .. '.th7'
-	filename = paths.concat(dotrc.save_dir,driverPrefix, simDataString, rngSeedString)
-	if not paths.dir(filename) then
-		paths.mkdir(filename)
-	end
-	filename = paths.concat(filename,snrString)
-	print(filename)
-	return  filename
-end
 
 M.replaceTorchSaveWithMatSave = function(torchFilename)
 	local dir = paths.dirname(torchFilename)
@@ -226,6 +198,21 @@ M.splitDataBasedOnLabels = function(data, labels)
   end
 
   return splitData
+end
+
+M.getGitCommitNumAndHash = function()
+	local io = require 'io'
+	--short version of git commit hash
+	local handle = io.popen('git log -n 1 --pretty=format:"%h" ')
+	local commitHash = handle:read("*a")
+	handle:close()
+	--tells us which commit number we are on, basically so that
+	--we know the order of our commits
+	local handle = io.popen('git rev-list --count HEAD')
+	print(handle)
+	local commitNum = handle:read("*a")
+	handle:close()
+	return commitNum:gsub("\n","") .. '_' .. commitHash:gsub("\n","")
 end
 
 return M

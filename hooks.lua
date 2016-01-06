@@ -70,6 +70,12 @@ M.saveForRNGSweep = function(fullState)
 	output.validLoss = fullState.validSetLoss
 	output.trainClassAcc = fullState.trainAvgClassAcc
 	output.validClassAcc = fullState.validAvgClassAcc
+	if fullState.trainAvgClassAccSubset then
+		output.trainAvgClassAccSubset = fullState.trainAvgClassAccSubset
+	end
+	if fullState.validAvgClassAccSubset then
+		output.validAvgClassAccSubset = fullState.validAvgClassAccSubset
+	end
 	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
@@ -79,10 +85,42 @@ M.saveForRNGSweep = function(fullState)
 
 end
 
-M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
-	require 'optim'
-	trainValidOrTestData = trainValidOrTestData or 'train' --valid values = 'train', 'test', 'valid'
+M.__getConfusionMatrixName = function(trainValidOrTestData)
+	assert(trainValidOrTestData and type(trainValidOrTestData) == 'string')
+	assert(trainValidOrTestData == 'train' or trainValidOrTestData == 'test' or 
+		trainValidOrTestData == 'valid', 'Only valid values are "train", ' ..
+		' "valid" or "test"')
 	local confMatrixKeyName = trainValidOrTestData .. '_confMatrix'
+	return confMatrixKeyName
+end
+
+M.subsetConfusionMatrix = function(fullState, ...)
+	assert(fullState and torch.type(fullState) == 'sleep_eeg.State',
+		'Must pass in an object of type sleep_eeg.State')
+	local args, trainValidOrTestData, allClassNames, subsetClassIdx = dok.unpack(
+	  {...},
+	  'subsetConfusionMatrix',
+	  'Makes a hook for a confusion matrix that ignores certain outputs',
+	  {arg='trainValidOrTestData', type ='string', help='hook for "train", "valid" or "test" set',req = true},
+	  {arg='allClassNames', type ='table', help='table of class names',req = true},
+	  {arg='subsetClassIdx', type ='table', help='list-like table of class indexes to keep',req = true}
+	)
+
+	--this is for the case where we're training a classifier on multiple classes, but 
+	--we just want to consider the accuracy for a subset of those classes
+	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData) .. '_subset'
+
+	if not fullState[confMatrixKeyName] then
+		fullState[confMatrixKeyName] = optim.SubsetConfusionMatrix(allClassNames, subsetClassIdx)
+	end
+	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, true)
+
+end
+
+M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
+	local optim = require 'optim'
+	trainValidOrTestData = trainValidOrTestData or 'train' --valid values = 'train', 'test', 'valid'
+	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData)
 
 	if not fullState[confMatrixKeyName] then
 		if classNames then
@@ -92,6 +130,16 @@ M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
 			fullState[confMatrixKeyName] = optim.ConfusionMatrix()
 		end
 	end
+
+	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, false)
+end
+
+M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrixKeyName, isSubset)
+	local suffix = ''
+	if isSubset then 
+		suffix = "Subset"
+	end
+
 	--here we actually look into fullState and get it's output, we're breaking generality
 	--here just to get this done
 	fullState[confMatrixKeyName]:zero()
@@ -99,8 +147,9 @@ M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
 	if trainValidOrTestData == 'train' then
 		modelOut = fullState.network:forward(fullState.data:getTrainData())
 		targets = fullState.data:getTrainTargets()
-		if not fullState.trainAvgClassAcc then
-			fullState:add('trainAvgClassAcc', torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
+		local trainAvgClassAccKey = 'trainAvgClassAcc' .. suffix
+		if not fullState[trainAvgClassAccKey] then
+			fullState:add(trainAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
 	elseif trainValidOrTestData == 'test' then
 		modelOut = fullState.network:forward(fullState.data:getTestData())
@@ -108,28 +157,35 @@ M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
 	elseif trainValidOrTestData == 'valid' then
 		modelOut = fullState.network:forward(fullState.data:getValidData())
 		targets = fullState.data:getValidTargets()
-		if not fullState.validAvgClassAcc then
-			fullState:add('validAvgClassAcc', torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
+		local validAvgClassAccKey = 'validAvgClassAcc' .. suffix
+		if not fullState[validAvgClassAccKey] then
+			fullState:add(validAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
 	else
 		error('Invalid value passed as for "trainValidOrTestData"' ..
 				'acceptable values are: "train" "test" or "valid"')
 	end
 	fullState[confMatrixKeyName]:batchAdd(modelOut, targets)
+
 	if trainValidOrTestData == 'valid' then
+		fullState[confMatrixKeyName]:updateValids() --update confMatrix
+
+		local validAvgClassAccKey = 'validAvgClassAcc' .. suffix
+		fullState[validAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+
 		if fullState.trainingIteration %100 == 0 then
-			fullState[confMatrixKeyName]:updateValids() --update confMatrix
-			
 			print('Valid accuracy: ' .. fullState[confMatrixKeyName].totalValid)
 		end
-		fullState.validAvgClassAcc[fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 	end
 
 	if trainValidOrTestData == 'train' then
 		fullState[confMatrixKeyName]:updateValids() --update confMatrix
-		fullState.trainAvgClassAcc[fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+
+		local trainAvgClassAccKey = 'trainAvgClassAcc' .. suffix
+		fullState[trainAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+
 		if fullState.trainingIteration % 100 == 0 then
-			print('Training accuracy: ' .. fullState.trainAvgClassAcc[fullState.trainingIteration])
+			print('Training accuracy: ' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
 end

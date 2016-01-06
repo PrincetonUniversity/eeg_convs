@@ -27,6 +27,7 @@ dofile 'CVData.lua'
 dofile 'CVBySubjData.lua'
 --this should get exported to its own module
 dofile 'DataFrame.lua'
+dofile 'SubsetConfusionMatrix.lua'
 
 
 --this is the end of the module definition

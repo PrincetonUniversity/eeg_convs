@@ -4,3 +4,4 @@ torch_exports
 output/
 job_logs/
 *.swp
+tags

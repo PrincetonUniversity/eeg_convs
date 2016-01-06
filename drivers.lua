@@ -3,7 +3,7 @@ local M = {}
 
 --these are settings that we want to share across different drivers, jhust makes it easier
 local SHARED_SETTINGS = {}
-SHARED_SETTINGS.maxTrainingIterations = 7500
+SHARED_SETTINGS.maxTrainingIterations = 10000
 
 M.train = function(fullState)
 	assert(torch.type(fullState) == 'sleep_eeg.State')
@@ -116,11 +116,26 @@ M.fullConvWake = function()
 		sleep_eeg.hooks.confusionMatrix(state, 'train', subj_data.classnames )
 	end
 	args.training.trainingIterationHooks[1] = trainConfMatrix
+
 	--make a closure that will pass in the 'valid' arg to our 
 	local validConfMatrix = function(state)
 		sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
 	end
 	args.training.trainingIterationHooks[2] = validConfMatrix
+
+	--make a closure that will pass in the 'train' arg to a "subsetConfusionMatrix"
+	--which only cares about performance on a subset of all possible classes
+	local trainConfSubsetMatrix = function(state)
+		sleep_eeg.hooks.subsetConfusionMatrix(state, 'train', subj_data.classnames, {1,2})--only do faces and places
+	end
+	args.training.trainingIterationHooks[3] = trainConfSubsetMatrix
+
+	--make a closure that will pass in the 'valid' arg to subsetConfusionMatrix
+	local validConfSubsetMatrix = function(state)
+		sleep_eeg.hooks.subsetConfusionMatrix(state, 'valid', subj_data.classnames, {1,2})
+	end
+	args.training.trainingIterationHooks[4] = validConfSubsetMatrix
+
 
 	--Training Completed Hooks
 	args.training.trainingCompleteHooks[1] = function(state)
