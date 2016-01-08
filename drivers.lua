@@ -226,7 +226,7 @@ M.fullConv = function()
 	--all arguments we will ever need to run this function
 	--create sim data
 	args = {}
-	args.driver_name = 'fullConv'
+	args.driver_name = 'fullConvSGD'
 	--TODO: rng state is NOT saved right now
 	args.rng_seed = '102387'
 
@@ -250,8 +250,8 @@ M.fullConv = function()
 	args.network.num_output_classes = subj_data.num_classes
 	--training args, used by sleep_eeg.drivers.train()
 	args.training = {}
-	args.training.optimName = 'adam'
-	args.training.learningRate = .001
+	args.training.optimName = 'sgd'
+	args.training.learningRate = .00001
 	args.training.maxTrainingIterations =  SHARED_SETTINGS.maxTrainingIterations
 	args.training.trainingIterationHooks = {} -- populated below
 	args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
@@ -274,6 +274,10 @@ M.fullConv = function()
 
 	--Training Completed Hooks
 	args.training.trainingCompleteHooks[1] = function(state)
+		return sleep_eeg.hooks.randomClassAcc(state, subj_data.num_classes)
+	end
+
+	args.training.trainingCompleteHooks[2] = function(state)
 		return sleep_eeg.hooks.saveForRNGSweep(state)
 	end
 
@@ -314,7 +318,7 @@ M.fullConv = function()
 		local network, criterion = 
 			sleep_eeg.models.createMaxTempConvClassificationNetwork( 
 				state.data:getTrainData(), args.network.numHiddenUnits, 
-				args.network.numHiddenLayers, state.data.num_output_classes)
+				args.network.numHiddenLayers, state.data.num_classes)
 			--sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
 				--state.data:getTrainData(), args.network.numHiddenUnits, 
 				--args.network.numHiddenLayers, state.data.num_output_classes)

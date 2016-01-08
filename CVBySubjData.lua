@@ -119,6 +119,9 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 	local allTrain, allValid, allTest = torch.LongTensor(), 
 			torch.LongTensor(), torch.LongTensor()
 
+	local subj_counts = {}
+	local class_counts = {}
+	local total_trial_count = 0
 	for _, subj_id in ipairs(self.subj_ids) do
 		for _, class in ipairs(self.classes) do
 			local queryCondition = {subj_id = subj_id, class = class}
@@ -130,6 +133,21 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 			local numTrainTrials = numTrials - numTestTrials - numValidTrials
 			trials = torch.LongTensor(trials) --convert for easier indexing
 
+			--keep counts per subject
+			if not subj_counts[subj_id] then
+				subj_counts[subj_id] = numTrials
+			else
+				subj_counts[subj_id] = subj_counts[subj_id] + numTrials
+			end
+
+			--keep counts per subject
+			if not class_counts[class] then
+				class_counts[class] = numTrials
+			else
+				class_counts[class] = class_counts[class] + numTrials
+			end
+			--keep total counts
+			total_trial_count = total_trial_count + numTrials
 
 			--now we pick some fixed proportion to be the test set, which is always the same regardless of the rng seed specified elsewhere in the program
 			local indices = torch.linspace(1,numTrials,numTrials):long()
@@ -189,6 +207,30 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self._all_targets = nil
   self.dataframe = nil
   
+  self._subj_counts = subj_counts
+  self._class_counts = class_counts
+  self._total_trial_count = total_trial_count
+  print(self:__tostring())
+end
+
+function CVBySubjData:__tostring()
+	local outStr = 'Subject breakdown:\n===================\n'
+	for subj, count in pairs(self._subj_counts) do
+		outStr = outStr .. 'Subj ' .. subj .. ': ' .. 
+		string.format('%.1f', 100*count/self._total_trial_count) .. 
+		'% (' .. count .. ')\n'
+	end
+
+	outStr = outStr .. 'Class breakdown:\n=================\n'
+	for class, count in pairs(self._class_counts) do
+
+		outStr = outStr .. 'Class: ' .. self.classnames[class] .. 
+		': ' .. string.format('%.1f', 100*count/self._total_trial_count) 
+		.. '% (' .. count .. ')\n'
+
+	end
+
+	return outStr
 end
 
 function CVBySubjData.__getRows(source, idxs)

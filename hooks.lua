@@ -28,6 +28,27 @@ M.testClassAcc = function(fullState, num_classes)
 end
 
 
+M.randomClassAcc = function(fullState, num_classes)
+	local randomData = fullState.data:getTestData():clone():normal(0,3)
+	local randomTargets = fullState.data:getTestTargets():clone():random(1,num_classes)
+
+	local confMatrix = optim.ConfusionMatrix(num_classes)
+	confMatrix:zero()
+
+	for i = 1,3 do
+		randomData:normal(0,3)
+		randomTargets:random(1,num_classes)
+		local modelOut = fullState.network:forward(randomData)
+		confMatrix:batchAdd(modelOut,randomTargets)
+	end
+
+	confMatrix:updateValids()
+	if not fullState.randomClassAcc then
+		fullState:add('randomClassAcc', confMatrix.totalValid, true)
+	else
+		fullState.randomClassAcc = confMatrix.totalValid
+	end
+end
 
 M.testLoss = function(fullState)
 	--unlike validSetLoss, we only do this once at the end
@@ -40,6 +61,10 @@ M.testLoss = function(fullState)
 	targets = fullState.data:getTestTargets()
 
 	fullState.testSetLoss[1] = fullState.criterion:forward(modelOut, targets)
+end
+
+M.lookAtDistributionOfMaxValues = function()
+	error('not yet implemented')
 end
 
 M.saveForSNRSweep = function (fullState)
@@ -70,11 +95,22 @@ M.saveForRNGSweep = function(fullState)
 	output.validLoss = fullState.validSetLoss
 	output.trainClassAcc = fullState.trainAvgClassAcc
 	output.validClassAcc = fullState.validAvgClassAcc
+	--save actual confusion matrix
+	output.trainConfMatrix = fullState[M.__getConfusionMatrixName('train')].mat
+	output.validConfMatrix = fullState[M.__getConfusionMatrixName('valid')].mat
+
 	if fullState.trainAvgClassAccSubset then
 		output.trainAvgClassAccSubset = fullState.trainAvgClassAccSubset
+		output.trainConfMatrixSubset = fullState[M.__getConfusionMatrixName('train') .. 'Subset'].mat
 	end
+
 	if fullState.validAvgClassAccSubset then
 		output.validAvgClassAccSubset = fullState.validAvgClassAccSubset
+		output.validConfMatrixSubset = fullState[M.__getConfusionMatrixName('valid') .. 'Subset'].mat
+	end
+
+	if fullState.randomClassAcc then
+		output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
 	end
 	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
 	matio.save(matFileOut, output)
