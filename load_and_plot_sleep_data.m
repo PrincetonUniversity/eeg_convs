@@ -6,12 +6,12 @@ rng_seeds = 1:40;
 
 % TODO: Add automatically grabbing commit num and id
 % TODO: Incorporate confusion matrix plots and random accuracy
-root_dir = '/home/elpiloto/Dropbox/code/torch/sleep_eeg_v2/output/sleep_eeg_v2/';
-commit_num_and_id = '2_ff5ed02';
+root_dir = fullfile(pwd,'output','sleep_eeg_v2');
+commit_num_and_id = '3_480aa5e';
 
 
 
-for driver_name = {'fullConv'}
+for driver_name = {'fullConvSGD'}
 	driver_idx = driver_idx + 1;
 	driver_name = driver_name{:};
 
@@ -41,8 +41,12 @@ for driver_name = {'fullConv'}
 			plot(all_data(fileCountIdx).trainClassAcc); hold all;
 			plot(all_data(fileCountIdx).validClassAcc);
 			plot([0 length(all_data(fileCountIdx).validClassAcc)], [0.5 0.5], '--r');
+			% plot random data accuracy at end of everything
+			last_point = xlim(); last_point = last_point(2);
+			plot(last_point, all_data(fileCountIdx).randomClassAcc,'xb','markers',12);
 			xlabel('Training Iteration'); ylabel('Class Accuracy');
-			legend({'Train', 'Valid'},'Location','Best');
+			legend({'Train', 'Valid','Chance','Random'},'Location','Best');
+
 			
 			save_dir = fullfile(data_dir, 'eps');
 			if ~exist(save_dir,'dir')
@@ -75,8 +79,8 @@ print(gcf,'-dpng','-painters',fullfile(save_dir,'avg.png'));
 close all;
 
 figure(1);
-plot(var([all_data.trainClassAcc])); hold all;
-plot(var([all_data.validClassAcc]));
+plot(var([all_data.trainClassAcc]')); hold all;
+plot(var([all_data.validClassAcc]'));
 legend({'Train', 'Valid'},'Location','Best');
 xlabel('Training Iteration'); ylabel('Class Acc. Variance');
 

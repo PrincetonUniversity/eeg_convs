@@ -45,6 +45,13 @@ M.populateArgsBasedOnJobNumber = function(args)
 	local gridOptions = {
 		rng_seed = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40},
 	}
+  --if we want to run a single subject, then we also have to specify which
+  --subj_idx we want to run for this job
+  if args.subj_data.run_single_subj then 
+    --we have 33 subjects
+    gridOptions.subj_idx = torch.linspace(1,33,33):totable()
+  end
+
 	local job_number = os.getenv('SLURM_ARRAY_TASK_ID')
 	if not job_number then
 		job_number = 0
@@ -53,20 +60,35 @@ M.populateArgsBasedOnJobNumber = function(args)
 	end
 	local options = sleep_eeg.param_sweep.grid({id = job_number},gridOptions)
 	args.rng_seed = options.rng_seed
+  if args.subj_data.run_single_subj then
+	  args.subj_data.subj_idx = options.subj_idx
+  end
 end
 
 M.saveFileNameFromDriversArgs = function(args,base_name)
-	local filename = ''
+	--build file path
 	local driverPrefix = base_name 
-	local gitCommitHash = M.getGitCommitNumAndHash()
-	local rngSeedString = 'rng_' .. args.rng_seed .. '.th7'
-	filename = paths.concat(dotrc.save_dir,driverPrefix, gitCommitHash)
-	if not paths.dir(filename) then
-		paths.mkdir(filename)
+	if args.subj_data.run_single_subj then
+		driverPrefix = driverPrefix .. 'PerSubj'
 	end
-	filename = paths.concat(filename,rngSeedString)
-	print(filename)
-	return  filename
+	local gitCommitHash = M.getGitCommitNumAndHash()
+	local rngSeedString = 'rng_' .. args.rng_seed 
+	local fullPath = paths.concat(dotrc.save_dir,driverPrefix, gitCommitHash)
+	if not paths.dir(fullPath) then
+		paths.mkdir(fullPath)
+	end
+
+	--build filename
+	local filename = ''
+	if args.subj_data.run_single_subj then
+		filename = 'subj_' .. args.subj_data.subj_idx .. '_' .. rngSeedString .. '.th7'
+	else
+		filename = rngSeedString .. '.th7'
+	end
+
+	local fullFilename = paths.concat(fullPath,filename)
+	print(fullFilename)
+	return  fullFilename
 end
 
 

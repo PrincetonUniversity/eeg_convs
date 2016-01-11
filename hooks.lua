@@ -1,13 +1,19 @@
 local M = {}
 
-M.validationLoss = function(fullState)
+M.OUTPUT_EVERY_X_ITERATIONS = 100
+
+M.validLoss = function(fullState)
 	if not fullState.validSetLoss then
-		fullState:add('validSetLoss', torch.FloatTensor(args.maxTrainingIterations):fill(-1.0), true)
+		fullState:add('validSetLoss', torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 	end
 	local modelOut, targets
 	modelOut = fullState.network:forward(fullState.data:getValidData())
 	targets = fullState.data:getValidTargets()
 	fullState.validSetLoss[fullState.trainingIteration] = fullState.criterion:forward(modelOut, targets)
+
+	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
+		print('Validation Loss: ' .. fullState.validSetLoss[fullState.trainingIteration])
+	end
 end
 
 
@@ -98,20 +104,24 @@ M.saveForRNGSweep = function(fullState)
 	--save actual confusion matrix
 	output.trainConfMatrix = fullState[M.__getConfusionMatrixName('train')].mat
 	output.validConfMatrix = fullState[M.__getConfusionMatrixName('valid')].mat
+	if fullState.args.subj_data.run_single_subj then
+		output.subj_id = fullState.data:getSubjID()
+	end
 
 	if fullState.trainAvgClassAccSubset then
 		output.trainAvgClassAccSubset = fullState.trainAvgClassAccSubset
-		output.trainConfMatrixSubset = fullState[M.__getConfusionMatrixName('train') .. 'Subset'].mat
+		output.trainConfMatrixSubset = fullState[M.__getConfusionMatrixName('train') .. '_subset'].mat
 	end
 
 	if fullState.validAvgClassAccSubset then
 		output.validAvgClassAccSubset = fullState.validAvgClassAccSubset
-		output.validConfMatrixSubset = fullState[M.__getConfusionMatrixName('valid') .. 'Subset'].mat
+		output.validConfMatrixSubset = fullState[M.__getConfusionMatrixName('valid') .. '_subset'].mat
 	end
 
 	if fullState.randomClassAcc then
 		output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
 	end
+
 	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
@@ -209,7 +219,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		local validAvgClassAccKey = 'validAvgClassAcc' .. suffix
 		fullState[validAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
-		if fullState.trainingIteration %100 == 0 then
+		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
 			print('Valid accuracy: ' .. fullState[confMatrixKeyName].totalValid)
 		end
 	end
@@ -220,7 +230,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		local trainAvgClassAccKey = 'trainAvgClassAcc' .. suffix
 		fullState[trainAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
-		if fullState.trainingIteration % 100 == 0 then
+		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
 			print('Training accuracy: ' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
 		end
 	end

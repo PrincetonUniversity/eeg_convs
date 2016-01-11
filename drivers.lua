@@ -86,12 +86,25 @@ M.fullConvWake = function()
   args.subj_data.percent_train = 65
   args.subj_data.percent_valid = 20
   args.subj_data.do_split_loso = false
+  args.subj_data.run_single_subj = true
+
+  --let's populate any job specific args we're sweeping over, because we need to get
+  --subject_idx before we can populate subj_data
+  sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
+
   --with the subj_data args specified, we go ahead and load the subject data 
   --because other argument values for the network and confusion matix depend on 
   --values that get loaded by subj_data
-  local subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
-    args.subj_data.do_split_loso, args.subj_data.percent_valid, 
-    args.subj_data.percent_train)
+  local subj_data 
+  if args.subj_data.run_single_subj then
+	subj_data = sleep_eeg.SingleSubjData(args.subj_data.filename,
+		args.subj_data.subj_idx, args.subj_data.percent_valid, 
+    	args.subj_data.percent_train)
+  else
+	subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
+    	args.subj_data.do_split_loso, args.subj_data.percent_valid, 
+    	args.subj_data.percent_train)
+  end
 	
 	--network args
 	args.network = {}
@@ -147,8 +160,6 @@ M.fullConvWake = function()
 		return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
 	end
 
-	--lastly, let's populate any job specific args we're sweeping over
-	sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
 	args.save_file = utils.saveFileNameFromDriversArgs(args,args.driver_name)
 	--end args definition 
 	------------------------------------------------------------------------
@@ -226,7 +237,7 @@ M.fullConv = function()
 	--all arguments we will ever need to run this function
 	--create sim data
 	args = {}
-	args.driver_name = 'fullConvSGD'
+	args.driver_name = 'fullConvADAM'
 	--TODO: rng state is NOT saved right now
 	args.rng_seed = '102387'
 
@@ -236,126 +247,137 @@ M.fullConv = function()
   args.subj_data.percent_train = 65
   args.subj_data.percent_valid = 20
   args.subj_data.do_split_loso = false
+  args.subj_data.run_single_subj = true
+
+  --let's populate any job specific args we're sweeping over, because we need to get
+  --subject_idx before we can populate subj_data
+  sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
+
   --with the subj_data args specified, we go ahead and load the subject data 
   --because other argument values for the network and confusion matix depend on 
   --values that get loaded by subj_data
-  local subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
-    args.subj_data.do_split_loso, args.subj_data.percent_valid, 
-    args.subj_data.percent_train)
-	
-	--network args
-	args.network = {}
-	args.network.numHiddenUnits = subj_data.num_classes
-	args.network.numHiddenLayers = 1
-	args.network.num_output_classes = subj_data.num_classes
-	--training args, used by sleep_eeg.drivers.train()
-	args.training = {}
-	args.training.optimName = 'sgd'
-	args.training.learningRate = .00001
-	args.training.maxTrainingIterations =  SHARED_SETTINGS.maxTrainingIterations
-	args.training.trainingIterationHooks = {} -- populated below
-	args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
-	args.training.trainingCompleteHooks = {}
+  local subj_data 
+  if args.subj_data.run_single_subj then
+	  subj_data = sleep_eeg.SingleSubjData(args.subj_data.filename,
+		  args.subj_data.subj_idx, args.subj_data.percent_valid, 
+		  args.subj_data.percent_train)
+  else
+	  subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
+		  args.subj_data.do_split_loso, args.subj_data.percent_valid, 
+		  args.subj_data.percent_train)
+  end
 
-	------------------------------------------------------------------------
-	--populate hooks
-	
-	--TODO: here we define our training iteration hooks, completion hooks, etc
-	--make a closure that will pass in the 'training' arg to our 
-	local trainConfMatrix = function(state)
-		sleep_eeg.hooks.confusionMatrix(state, 'train', subj_data.classnames )
-	end
-	args.training.trainingIterationHooks[1] = trainConfMatrix
-	--make a closure that will pass in the 'valid' arg to our 
-	local validConfMatrix = function(state)
-		sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
-	end
-	args.training.trainingIterationHooks[2] = validConfMatrix
+  --network args
+  args.network = {}
+  args.network.numHiddenUnits = subj_data.num_classes
+  args.network.numHiddenLayers = 1
+  args.network.num_output_classes = subj_data.num_classes
+  --training args, used by sleep_eeg.drivers.train()
+  args.training = {}
+  args.training.optimName = 'adam'
+  args.training.learningRate = .00001
+  args.training.maxTrainingIterations =  SHARED_SETTINGS.maxTrainingIterations
+  args.training.trainingIterationHooks = {} -- populated below
+  args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
+  args.training.trainingCompleteHooks = {}
 
-	--Training Completed Hooks
-	args.training.trainingCompleteHooks[1] = function(state)
-		return sleep_eeg.hooks.randomClassAcc(state, subj_data.num_classes)
-	end
+  ------------------------------------------------------------------------
+  --populate hooks
 
-	args.training.trainingCompleteHooks[2] = function(state)
-		return sleep_eeg.hooks.saveForRNGSweep(state)
-	end
+  --TODO: here we define our training iteration hooks, completion hooks, etc
+  --make a closure that will pass in the 'training' arg to our 
+  local trainConfMatrix = function(state)
+	  sleep_eeg.hooks.confusionMatrix(state, 'train', subj_data.classnames )
+  end
+  args.training.trainingIterationHooks[1] = trainConfMatrix
+  --make a closure that will pass in the 'valid' arg to our 
+  local validConfMatrix = function(state)
+	  sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
+  end
+  args.training.trainingIterationHooks[2] = validConfMatrix
 
-	--make a closure for our early termination fn
-	args.training.earlyTerminationFn = function(state)
-		return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
-	end
+  --Training Completed Hooks
+  args.training.trainingCompleteHooks[1] = function(state)
+	  return sleep_eeg.hooks.randomClassAcc(state, subj_data.num_classes)
+  end
 
-	--lastly, let's populate any job specific args we're sweeping over
-	sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
-	args.save_file = utils.saveFileNameFromDriversArgs(args,args.driver_name)
-	--end args definition 
-	------------------------------------------------------------------------
+  args.training.trainingCompleteHooks[2] = function(state)
+	  return sleep_eeg.hooks.saveForRNGSweep(state)
+  end
 
-	--this will get reload state if args.save_file already exists
-	--otherwise, just keeps saving there
-	state = sleep_eeg.State(args.save_file)
+  --make a closure for our early termination fn
+  args.training.earlyTerminationFn = function(state)
+	  return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
+  end
 
-	--set random seed
-	if not state.rngState then
-		torch.manualSeed(args.rng_seed)
-	else
-		torch.setRNGState(state.rngState)
-	end
+  args.save_file = utils.saveFileNameFromDriversArgs(args,args.driver_name)
+  --end args definition 
+  ------------------------------------------------------------------------
 
-	if not state.args then
-		state:add('args', args, true)
-	end
+  --this will get reload state if args.save_file already exists
+  --otherwise, just keeps saving there
+  state = sleep_eeg.State(args.save_file)
 
-	if not state.data then
-		state:add('data',subj_data,false)
-	end
+  --set random seed
+  if not state.rngState then
+	  torch.manualSeed(args.rng_seed)
+  else
+	  torch.setRNGState(state.rngState)
+  end
 
-	--create our network and criterion  (network type determines criterion type)
-	if not state.network and not state.criterion then
-    print('making network started...')
-    print(args.network)
-		local network, criterion = 
-			sleep_eeg.models.createMaxTempConvClassificationNetwork( 
-				state.data:getTrainData(), args.network.numHiddenUnits, 
-				args.network.numHiddenLayers, state.data.num_classes)
-			--sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
-				--state.data:getTrainData(), args.network.numHiddenUnits, 
-				--args.network.numHiddenLayers, state.data.num_output_classes)
+  if not state.args then
+	  state:add('args', args, true)
+  end
 
-    print('making network finished...')
-		state:add('network',network, true)
-		state:add('criterion',criterion, true)
-	elseif utils.nilXOR(state.network, state.criterion) then
-		error([[You've managed to save one, but NOT BOTH, of the following values:
+  if not state.data then
+	  state:add('data',subj_data,false)
+  end
+
+  --create our network and criterion  (network type determines criterion type)
+  if not state.network and not state.criterion then
+	  print('making network started...')
+	  print(args.network)
+	  local network, criterion = 
+	  sleep_eeg.models.createMaxTempConvClassificationNetwork( 
+		  state.data:getTrainData(), args.network.numHiddenUnits, 
+		  args.network.numHiddenLayers, state.data.num_classes)
+	  --sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
+	  --state.data:getTrainData(), args.network.numHiddenUnits, 
+	  --args.network.numHiddenLayers, state.data.num_output_classes)
+
+	  print('making network finished...')
+	  state:add('network',network, true)
+	  state:add('criterion',criterion, true)
+  elseif utils.nilXOR(state.network, state.criterion) then
+	  error([[You've managed to save one, but NOT BOTH, of the following values:
 				- state.network
 				- state.criterion
 				We can't load just one because making the network determines the type of 
 				criterion you need.]])
-	end
+  end
 
-	--we load params and gradParams together
-	if not state.params and not state.gradParams then
-		local params, gradParams = state.network:getParameters()
-		state:add('params',params,true)
-		state:add('gradParams',gradParams,true)
-	elseif utils.nilXOR(state.params, state.gradParams) then
-		error([[You've managed to save one, but NOT BOTH, of the following values:
+  --we load params and gradParams together
+  if not state.params and not state.gradParams then
+	  local params, gradParams = state.network:getParameters()
+	  state:add('params',params,true)
+	  state:add('gradParams',gradParams,true)
+  elseif utils.nilXOR(state.params, state.gradParams) then
+	  error([[You've managed to save one, but NOT BOTH, of the following values:
 				- state.params
 				- state.gradParams
 				We can't load just one because network:getParameters() manipulates both. 
 				And you don't really want to call network:getParameters() on the same 
 				network twice cause spooky things happen']])
-	end
+  end
 
-	--little output about our network
-	print('-------------------------------------------------------------------')
-	print('Network information: ')
-	print(state.network)
-	print('With a total of ' ..state.params:numel() .. ' parameters')
+  --little output about our network
+  print('-------------------------------------------------------------------')
+  print('Network information: ')
+  print(state.network)
+  print('With a total of ' ..state.params:numel() .. ' parameters')
 
-	--finally call the optimizer
-	M.train(state)
+  --finally call the optimizer
+  M.train(state)
 
 end
 
@@ -369,19 +391,19 @@ M.noMaxOut = function()
 	--TODO: rng state is NOT saved right now
 	args.rng_seed = '102387'
 
-  --subj data arguments
-  args.subj_data = {}
-  args.subj_data.filename = './torch_exports/sleep_ERP_cuelocked_all_4ms.mat'
-  args.subj_data.percent_train = 65
-  args.subj_data.percent_valid = 20
-  args.subj_data.do_split_loso = false
-  --with the subj_data args specified, we go ahead and load the subject data 
-  --because other argument values for the network and confusion matix depend on 
-  --values that get loaded by subj_data
-  local subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
-    args.subj_data.do_split_loso, args.subj_data.percent_valid, 
-    args.subj_data.percent_train)
-	
+	--subj data arguments
+	args.subj_data = {}
+	args.subj_data.filename = './torch_exports/sleep_ERP_cuelocked_all_4ms.mat'
+	args.subj_data.percent_train = 65
+	args.subj_data.percent_valid = 20
+	args.subj_data.do_split_loso = false
+	--with the subj_data args specified, we go ahead and load the subject data 
+	--because other argument values for the network and confusion matix depend on 
+	--values that get loaded by subj_data
+	local subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
+		args.subj_data.do_split_loso, args.subj_data.percent_valid, 
+		args.subj_data.percent_train)
+
 	--network args
 	args.network = {}
 	args.network.numHiddenUnits = subj_data.num_classes
@@ -398,7 +420,7 @@ M.noMaxOut = function()
 
 	------------------------------------------------------------------------
 	--populate hooks
-	
+
 	--TODO: here we define our training iteration hooks, completion hooks, etc
 	--make a closure that will pass in the 'training' arg to our 
 	local trainConfMatrix = function(state)
@@ -448,14 +470,14 @@ M.noMaxOut = function()
 
 	--create our network and criterion  (network type determines criterion type)
 	if not state.network and not state.criterion then
-    print('making network started...')
-    print(args.network)
+		print('making network started...')
+		print(args.network)
 		local network, criterion = 
-			sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
-				state.data:getTrainData(), args.network.numHiddenUnits, 
-				args.network.numHiddenLayers, state.data.num_output_classes)
+		sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
+			state.data:getTrainData(), args.network.numHiddenUnits, 
+			args.network.numHiddenLayers, state.data.num_output_classes)
 
-    print('making network finished...')
+		print('making network finished...')
 		state:add('network',network, true)
 		state:add('criterion',criterion, true)
 	elseif utils.nilXOR(state.network, state.criterion) then

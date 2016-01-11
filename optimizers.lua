@@ -51,7 +51,8 @@ M.performTrainIteration = function(fullState)
 
 	if fullState.trainingIteration % 100 == 0 then
 		print('_________________________________')
-		print('----ITERATION:-------' .. fullState.trainingIteration)
+		print('----ITERATION: ' .. fullState.trainingIteration .. '-------')
+		print('Training Loss: ')
 		print(fullState.trainSetLoss[fullState.trainingIteration])
 		print('')
 	end
