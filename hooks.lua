@@ -131,6 +131,54 @@ M.saveForRNGSweep = function(fullState)
 
 end
 
+M.plotForRNGSweep = function(fullState)
+	require 'gnuplot'
+	
+	--helper fns
+	local plotSymbol = function(plotTable, name, values) 
+		table.insert(plotTable, {name, values, '-'})
+	end
+
+	local makeAndSavePlot = function(saveFile, title, plots)
+		local pngfig = gnuplot.pngfigure(saveFile)
+		gnuplot.plot(plots)
+		gnuplot.grid('on')
+		gnuplot.title(title)
+		gnuplot.plotflush()
+		gnuplot.close(pngfig)
+	end
+
+	--make two plots: one for losses, one for classification accuracy
+	--loss plots
+	local lossPlots = {}
+	plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
+	plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
+	local saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
+	print('Saving plot to: ' .. saveFile)
+	makeAndSavePlot(saveFile, 'Losses', lossPlots)
+	
+	--class acc plots
+	local classAccPlots = {}
+	plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc)
+	plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc)
+	
+	if fullState.trainAvgClassAccSubset then
+		plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset)
+	end
+
+	if fullState.validAvgClassAccSubset then
+		plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
+	end
+	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'ClassAcc')
+	print('Saving plot to: ' .. saveFile)
+	makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
+
+	--if fullState.randomClassAcc then
+		--output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
+	--end
+
+end
+
 M.__getConfusionMatrixName = function(trainValidOrTestData)
 	assert(trainValidOrTestData and type(trainValidOrTestData) == 'string')
 	assert(trainValidOrTestData == 'train' or trainValidOrTestData == 'test' or 
