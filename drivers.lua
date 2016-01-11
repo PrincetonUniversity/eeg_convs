@@ -135,6 +135,7 @@ M.fullConvWake = function()
 		sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
 	end
 	args.training.trainingIterationHooks[2] = validConfMatrix
+	args.training.trainingIterationHooks[3] = sleep_eeg.hooks.validLoss
 
 	--make a closure that will pass in the 'train' arg to a "subsetConfusionMatrix"
 	--which only cares about performance on a subset of all possible classes
@@ -299,6 +300,7 @@ M.fullConv = function()
 	  sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
   end
   args.training.trainingIterationHooks[2] = validConfMatrix
+  args.training.trainingIterationHooks[3] = sleep_eeg.hooks.validLoss
 
   --Training Completed Hooks
   args.training.trainingCompleteHooks[1] = function(state)

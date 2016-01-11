@@ -140,12 +140,12 @@ M.plotForRNGSweep = function(fullState)
 	end
 
 	local makeAndSavePlot = function(saveFile, title, plots)
-		local epsfig = gnuplot.epsfigure(saveFile)
+		local pngfig = gnuplot.pngfigure(saveFile)
 		gnuplot.plot(plots)
 		gnuplot.grid('on')
 		gnuplot.title(title)
 		gnuplot.plotflush()
-		gnuplot.close(epsfig)
+		gnuplot.close(pngfig)
 	end
 
 	--make two plots: one for losses, one for classification accuracy
@@ -153,7 +153,7 @@ M.plotForRNGSweep = function(fullState)
 	local lossPlots = {}
 	plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
 	plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
-	local saveFile = sleep_eeg.utils.replaceTorchSaveWithEpsSave(fullState.args.save_file, 'Losses')
+	local saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
 	print('Saving plot to: ' .. saveFile)
 	makeAndSavePlot(saveFile, 'Losses', lossPlots)
 	
@@ -169,7 +169,7 @@ M.plotForRNGSweep = function(fullState)
 	if fullState.validAvgClassAccSubset then
 		plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
 	end
-	saveFile = sleep_eeg.utils.replaceTorchSaveWithEpsSave(fullState.args.save_file, 'ClassAcc')
+	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'ClassAcc')
 	print('Saving plot to: ' .. saveFile)
 	makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
 
