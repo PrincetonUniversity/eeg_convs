@@ -6,7 +6,7 @@ M.SGD = function(learningRate)
 		learningRate = 0.001
 	end
 	optimSettings = {learningRate = learningRate, momentum = 0.9, decay = 0}
-	return optim.sgd, optimSettings
+	return optim.sgd_log, optimSettings
 end
 
 M.ADAM = function(learningRate)
@@ -15,7 +15,7 @@ M.ADAM = function(learningRate)
 		learningRate = 0.001
 	end
 	optimSettings = {learningRate = learningRate}
-	return optim.adam, optimSettings
+	return optim.adam_log, optimSettings
 end
 
 M.getOptimizer = function(name, learningRate)

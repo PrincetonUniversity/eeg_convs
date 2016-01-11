@@ -26,6 +26,8 @@ dofile 'State.lua'
 dofile 'CVData.lua'
 dofile 'CVBySubjData.lua'
 dofile 'SingleSubjData.lua'
+dofile 'adam_log.lua'
+dofile 'sgd_log.lua'
 --this should get exported to its own module
 dofile 'DataFrame.lua'
 dofile 'SubsetConfusionMatrix.lua'

@@ -301,6 +301,7 @@ M.fullConv = function()
   end
   args.training.trainingIterationHooks[2] = validConfMatrix
   args.training.trainingIterationHooks[3] = sleep_eeg.hooks.validLoss
+  args.training.trainingIterationHooks[4] = sleep_eeg.hooks.logWeightToUpdateNormRatio
 
   --Training Completed Hooks
   args.training.trainingCompleteHooks[1] = function(state)

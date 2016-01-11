@@ -33,6 +33,14 @@ M.testClassAcc = function(fullState, num_classes)
 	fullState.testAvgClassAcc[1] = confMatrix.totalValid
 end
 
+--training iteration hook
+M.logWeightToUpdateNormRatio = function(fullState)
+	--only works with optim.adam_log or optim.sgd_log
+	if not fullState.weightToUpdateNormRatio then
+		fullState:add('weightToUpdateNormRatio', torch.DoubleTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
+	end
+	fullState.weightToUpdateNormRatio[fullState.trainingIteration] = fullState.params:norm()/fullState.optimSettings.update_norm
+end
 
 M.randomClassAcc = function(fullState, num_classes)
 	local randomData = fullState.data:getTestData():clone():normal(0,3)
@@ -121,6 +129,9 @@ M.saveForRNGSweep = function(fullState)
 	if fullState.randomClassAcc then
 		output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
 	end
+
+	--save weight to update ratio
+	output.weightToUpdateNormRatio = fullState.weightToUpdateNormRatio
 
 	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
 	matio.save(matFileOut, output)
