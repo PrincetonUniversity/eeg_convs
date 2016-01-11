@@ -155,6 +155,10 @@ M.fullConvWake = function()
 		return sleep_eeg.hooks.saveForRNGSweep(state)
 	end
 
+	if args.subj_data.run_single_subj then
+		args.training.trainingCompleteHooks[2] = sleep_eeg.hooks.plotForRNGSweep
+	end
+
 	--make a closure for our early termination fn
 	args.training.earlyTerminationFn = function(state)
 		return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
@@ -303,6 +307,11 @@ M.fullConv = function()
 
   args.training.trainingCompleteHooks[2] = function(state)
 	  return sleep_eeg.hooks.saveForRNGSweep(state)
+  end
+
+  --we really only want to plot automatically if we're doing subjects separately
+  if args.subj_data.run_single_subj then
+  	args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
   end
 
   --make a closure for our early termination fn

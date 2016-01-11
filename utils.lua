@@ -111,6 +111,15 @@ M.replaceTorchSaveWithMatSave = function(torchFilename)
 	return paths.concat(dir,baseFilename .. '.mat')
 end
 
+M.replaceTorchSaveWithEpsSave = function(torchFilename, suffix)
+	local dir = paths.dirname(torchFilename)
+	local baseFilename = paths.basename(torchFilename,'.th7')
+	if suffix then
+		return paths.concat(dir,baseFilename .. suffix .. '.eps')
+	else
+		return paths.concat(dir,baseFilename .. '.eps')
+	end
+end
 
 M.getUniqueStrings = function(strTable)
   local numUniqueStrings = 0
