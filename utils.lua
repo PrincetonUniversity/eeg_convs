@@ -68,8 +68,13 @@ end
 M.saveFileNameFromDriversArgs = function(args,base_name)
 	--build file path
 	local driverPrefix = base_name 
-	if args.subj_data.run_single_subj then
-		driverPrefix = driverPrefix .. 'PerSubj'
+	if args.subj_data then
+		if args.subj_data.run_single_subj then
+			driverPrefix = driverPrefix .. 'PerSubj'
+		end
+		if args.subj_data.isSim then
+			driverPrefix = driverPrefix .. 'SIMULATED'
+		end
 	end
 	local gitCommitHash = M.getGitCommitNumAndHash()
 	local rngSeedString = 'rng_' .. args.rng_seed 
@@ -79,12 +84,7 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	end
 
 	--build filename
-	local filename = ''
-	if args.subj_data.run_single_subj then
-		filename = 'subj_' .. args.subj_data.subj_idx .. '_' .. rngSeedString .. '.th7'
-	else
-		filename = rngSeedString .. '.th7'
-	end
+	local filename = rngSeedString .. '.th7'
 
 	local fullFilename = paths.concat(fullPath,filename)
 	print(fullFilename)
@@ -129,6 +129,15 @@ M.replaceTorchSaveWithPngSave = function(torchFilename, suffix)
 	else
 		return paths.concat(dir,baseFilename .. '.png')
 	end
+end
+
+M.insertDirToSaveFile = function(torchFilename, dirToAdd)
+	local dir = paths.concat(paths.dirname(torchFilename), dirToAdd)
+	local filename = paths.basename(torchFilename)
+	if not paths.dir(dir) then
+		paths.mkdir(dir)
+	end
+	return paths.concat(dir, filename)
 end
 
 M.getUniqueStrings = function(strTable)

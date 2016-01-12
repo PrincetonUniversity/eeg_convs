@@ -133,7 +133,14 @@ M.saveForRNGSweep = function(fullState)
 	--save weight to update ratio
 	output.weightToUpdateNormRatio = fullState.weightToUpdateNormRatio
 
-	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
+	local newSaveFile
+	if fullState.args.subj_data and fullState.args.subj_data.run_single_subj then
+		newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+	else
+		newSaveFile = fullState.args.save_file
+	end
+
+	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(newSaveFile)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
@@ -164,7 +171,8 @@ M.plotForRNGSweep = function(fullState)
 	local lossPlots = {}
 	plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
 	plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
-	local saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
+	local newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+	local saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'Losses')
 	print('Saving plot to: ' .. saveFile)
 	makeAndSavePlot(saveFile, 'Losses', lossPlots)
 	
@@ -180,7 +188,7 @@ M.plotForRNGSweep = function(fullState)
 	if fullState.validAvgClassAccSubset then
 		plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
 	end
-	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'ClassAcc')
+	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. saveFile)
 	makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
 

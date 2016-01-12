@@ -248,7 +248,12 @@ M.fullConv = function()
 
   --subj data arguments
   args.subj_data = {}
-  args.subj_data.filename = './torch_exports/sleep_ERP_cuelocked_all_4ms.mat'
+  args.subj_data.isSim = true
+  if args.subj_data.isSim then
+  	args.subj_data.filename = './torch_exports/sleep_ERP_cuelocked_all_4ms.mat'
+  else
+	args.subj_data.filename = './torch_exports/sleep_ERP_cuelocked_all_4ms_sim.mat'
+  end
   args.subj_data.percent_train = 65
   args.subj_data.percent_valid = 20
   args.subj_data.do_split_loso = false
@@ -318,8 +323,10 @@ M.fullConv = function()
   end
 
   --make a closure for our early termination fn
-  args.training.earlyTerminationFn = function(state)
-	  return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
+  if not args.subj_data.isSim then
+	  args.training.earlyTerminationFn = function(state)
+		  return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.7)
+	  end
   end
 
   args.save_file = utils.saveFileNameFromDriversArgs(args,args.driver_name)
@@ -452,7 +459,7 @@ M.noMaxOut = function()
 
 	--make a closure for our early termination fn
 	args.training.earlyTerminationFn = function(state)
-		return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.6)
+		return sleep_eeg.terminators.trainAndValidAvgClassAccuracyHigh(state,0.7)
 	end
 
 	--lastly, let's populate any job specific args we're sweeping over
