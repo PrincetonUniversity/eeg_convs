@@ -35,5 +35,6 @@ dofile 'SubsetConfusionMatrix.lua'
 
 --this is the end of the module definition
 ------------------------------------------------------------------------
-sleep_eeg.drivers.fullConv()
+sleep_eeg.drivers.generalDriver()
+
 return sleep_eeg
