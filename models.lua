@@ -32,7 +32,8 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 	--finally logsoftmax gives us 1 numOutputClasses-way classifier
 	model:add(nn.LogSoftMax())
 
-	local criterion = nn.CrossEntropyCriterion()
+	--local criterion = nn.CrossEntropyCriterion()
+	local criterion = nn.ClassNLLCriterion()
 
 	return model, criterion
 
@@ -80,7 +81,8 @@ M.createMaxTempConvClassificationNetwork = function(egInputBatch, numHiddenUnits
 	--finally logsoftmax gives us 1 numOutputClasses-way classifier
 	model:add(nn.LogSoftMax())
 
-	local criterion = nn.CrossEntropyCriterion()
+	--local criterion = nn.CrossEntropyCriterion()
+	local criterion = nn.ClassNLLCriterion()
 
 	return model, criterion
 end
@@ -140,7 +142,8 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
 	--finally logsoftmax gives us 1 numOutputClasses-way classifier
 	model:add(nn.LogSoftMax())
 
-	local criterion = nn.CrossEntropyCriterion()
+	--local criterion = nn.CrossEntropyCriterion()
+	local criterion = nn.ClassNLLCriterion()
 
 	return model, criterion
 end
