@@ -32,8 +32,6 @@ end
 
 
 function SingleSubjData:__loadSubjData(filename)
-	local matio = require 'matio'
-	matio.use_lua_strings = true
 
 	--[[
 	currently this loads the following fields into loadedData:
@@ -51,7 +49,7 @@ function SingleSubjData:__loadSubjData(filename)
 		- labels: (integer )class indicator tensor with [num_trials x 1] dimensions
 		- subject_ids: table of string subj id, with indicies [1 to num_trials]
 	--]]
-	local loadedData = matio.load(filename)
+  local loadedData = sleep_eeg.utils.matioHelper(filename, {'data', 'subject_ids', 'labels', 'dimensions', 'conds'})
   assert(loadedData['data'] and loadedData['subject_ids'] and 
     loadedData['labels'] and loadedData['dimensions'] and loadedData['conds'], 
     'One of the following variables is expected, but not present in file:' ..

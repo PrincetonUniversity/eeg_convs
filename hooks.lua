@@ -98,8 +98,8 @@ M.saveForSNRSweep = function (fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-	print('Final Train Class Acc: '  .. output.trainClassAcc[-1])
-	print('Final Test Class Acc: '  .. output.testClassAcc[-1])
+	print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+	print('Final Test Class Acc: '  .. output.testClassAcc[fullState.trainingIteration])
 end
 
 M.saveForRNGSweep = function(fullState)
@@ -144,8 +144,8 @@ M.saveForRNGSweep = function(fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-	print('Final Train Class Acc: '  .. output.trainClassAcc[-1])
-	print('Final Valid Class Acc: '  .. output.validClassAcc[-1])
+	print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+	print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
 
 end
 

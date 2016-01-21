@@ -286,10 +286,10 @@ M.generalDriver = function()
     elseif cmdOptions.network_type == 'no_max_temp_conv' then
       network, criterion = sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_output_classes)
+        args.network.numHiddenLayers, state.data.num_classes)
     elseif cmdOptions.network_type == 'fully_connected' then
-      network, criterion = sleep_eeg.createFullyConnectedNetwork(state.date:getTrainData(), 
-          args.network.numHiddenUnits, args.network.numHiddenLayers, state.data.num_output_classes)
+      network, criterion = sleep_eeg.models.createFullyConnectedNetwork(state.data:getTrainData(), 
+          args.network.numHiddenUnits, args.network.numHiddenLayers, state.data.num_classes)
     end
     print('making network finished...')
     state:add('network',network, true)

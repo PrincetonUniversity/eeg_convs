@@ -140,6 +140,16 @@ M.insertDirToSaveFile = function(torchFilename, dirToAdd)
 	return paths.concat(dir, filename)
 end
 
+M.matioHelper = function(filename, varNames)
+  local matio = require 'matio'
+  matio.use_lua_strings = true
+  local loaded = {}
+  for _, var in pairs(varNames) do
+    loaded[var] = matio.load(filename,var)
+  end
+  return loaded
+end
+
 M.getUniqueStrings = function(strTable)
   local numUniqueStrings = 0
   -- keys are unique strings, values are which key number they are

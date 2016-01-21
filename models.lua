@@ -9,9 +9,8 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
 	local numTotalFeatures = numTimePoints * numInputUnits
-	assert(egInputBatch and numHiddenUnits and numHiddenLayers)
+	assert(egInputBatch and numHiddenUnits and numHiddenLayers and numOutputClasses)
 	assert(numHiddenLayers >= 0)
-	numOutputClasses = numOutputClasses or 2
 
 	local model = nn.Sequential()
 	model:add(nn.View(-1):setNumInputDims(2)) --flatten
