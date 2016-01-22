@@ -202,6 +202,11 @@ function SingleSubjData:__splitData(...)
   self._all_data = nil
   self._all_targets = nil
   self.dataframe = nil
+
+  --and now let's do our normalization
+  self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data)
+  sleep_eeg.utils.normalizeData(self._valid_data, self._mean, self._std)
+  sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
   
   self._subj_counts = subj_counts
   self._class_counts = class_counts

@@ -41,8 +41,8 @@ function CVBySubjData:__loadSubjData(filename)
 	--[[
 	currently this loads the following fields into loadedData:
 		- SUBJECT_DATA_PATH: tells where this data came from when it was being
-			exported 
-		- args: settings used to export this data
+			exported (NOT ANYMORE)
+		- args: settings used to export this data (NOT ANYMORE)
 		- conds: table which tells us which indices belong to which classes
 		- dimensions: table with the following fields:
 				- freqs
@@ -203,6 +203,11 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self._all_data = nil
   self._all_targets = nil
   self.dataframe = nil
+
+  --and now let's do our normalization
+  self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data)
+  sleep_eeg.utils.normalizeData(self._valid_data, self._mean, self._std)
+  sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
   
   self._subj_counts = subj_counts
   self._class_counts = class_counts

@@ -72,9 +72,6 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 		if args.subj_data.run_single_subj then
 			driverPrefix = driverPrefix .. 'PerSubj'
 		end
-		if args.subj_data.isSim then
-			driverPrefix = driverPrefix .. 'SIMULATED'
-		end
 	end
 	local gitCommitHash = M.getGitCommitNumAndHash()
 	local rngSeedString = 'rng_' .. args.rng_seed 
