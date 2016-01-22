@@ -115,7 +115,7 @@ local initArgs = function()
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
   cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected"')
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
-  cmd:option('-subj_index', 1, 'subject index, not ID. only valid for run_single_subj = true')
+  cmd:option('-subj_index', 0, 'subject index, not ID. only valid for run_single_subj = true')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -160,7 +160,7 @@ M.generalDriver = function()
   if cmdOptions.rng_seed then
     args.rng_seed = cmdOptions.rng_seed
   end
-  if cmdOptions.subj_index then
+  if cmdOptions.subj_index ~= 0 then
     args.subj_data.subj_idx = cmdOptions.subj_index
   end
 
@@ -239,10 +239,7 @@ M.generalDriver = function()
     return sleep_eeg.hooks.saveForRNGSweep(state)
   end
 
-  --we really only want to plot automatically if we're doing subjects separately
-  if args.subj_data.run_single_subj then
-    args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
-  end
+  args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
 
   --make a closure for our early termination fn
   if cmdOptions.early_termination > 0 and cmdOptions.early_termination <= 1 then

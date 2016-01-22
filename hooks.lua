@@ -171,8 +171,14 @@ M.plotForRNGSweep = function(fullState)
 	local lossPlots = {}
 	plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
 	plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
-	local newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
-	local saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'Losses')
+  local newSaveFile, saveFile = '', ''
+  if fullState.args.subj_data.run_single_subj then
+    newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+    saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'Losses')
+  else
+    newSaveFile = fullState.args.save_file
+    saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
+  end
 	print('Saving plot to: ' .. saveFile)
 	makeAndSavePlot(saveFile, 'Losses', lossPlots)
 	
