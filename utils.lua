@@ -68,11 +68,6 @@ end
 M.saveFileNameFromDriversArgs = function(args,base_name)
 	--build file path
 	local driverPrefix = base_name 
-	if args.subj_data then
-		if args.subj_data.run_single_subj then
-			driverPrefix = driverPrefix .. 'PerSubj'
-		end
-	end
 	local gitCommitHash = M.getGitCommitNumAndHash()
 	local rngSeedString = 'rng_' .. args.rng_seed 
 	local fullPath = paths.concat(dotrc.save_dir,driverPrefix, gitCommitHash)
