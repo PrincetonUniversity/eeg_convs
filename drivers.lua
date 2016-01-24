@@ -39,7 +39,9 @@ M.train = function(fullState)
 
       fullState.trainingIteration = fullState.trainingIteration + 1
 
+	  fullState.network:training() --added for dropout functionality
       optimizers.performTrainIteration(fullState)
+	  fullState.network:evaluate()
 
       if #options.trainingIterationHooks > 0 then
         for hookIdx = 1, #options.trainingIterationHooks do
@@ -80,6 +82,9 @@ local makeConfigName = function(args, cmdOptions)
   end
 
   local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+  if cmdOptions.dropout_prob > 0 then
+  	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
+  end
   --simulated data indicator
   if cmdOptions.simulated >= 0 then
     simString = 'Sim' .. tostring(cmdOptions.simulated)
@@ -114,6 +119,7 @@ local initArgs = function()
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
   cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected"')
+  cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
   cmd:option('-subj_index', 0, 'subject index, not ID. only valid for run_single_subj = true')
   cmd:text()
@@ -183,6 +189,7 @@ M.generalDriver = function()
   args.network.numHiddenUnits = subj_data.num_classes
   args.network.numHiddenLayers = 1
   args.network.num_output_classes = subj_data.num_classes
+  args.network.dropout_prob = cmdOptions.dropout_prob
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
   args.training.optimName = cmdOptions.optim
@@ -279,14 +286,18 @@ M.generalDriver = function()
     if cmdOptions.network_type == 'max_temp_conv' then 
       network, criterion = sleep_eeg.models.createMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes)
+        args.network.numHiddenLayers, state.data.num_classes, 
+		args.network.dropout_prob)
     elseif cmdOptions.network_type == 'no_max_temp_conv' then
       network, criterion = sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes)
+        args.network.numHiddenLayers, state.data.num_classes, 
+		args.network.dropout_prob)
     elseif cmdOptions.network_type == 'fully_connected' then
-      network, criterion = sleep_eeg.models.createFullyConnectedNetwork(state.data:getTrainData(), 
-          args.network.numHiddenUnits, args.network.numHiddenLayers, state.data.num_classes)
+      network, criterion = sleep_eeg.models.createFullyConnectedNetwork(
+	  	state.data:getTrainData(), args.network.numHiddenUnits, 
+		args.network.numHiddenLayers, state.data.num_classes, 
+		args.network.dropout_prob)
     end
     print('making network finished...')
     state:add('network',network, true)

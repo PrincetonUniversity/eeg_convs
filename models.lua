@@ -4,15 +4,19 @@ local M = {}
 
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits, 
-		numHiddenLayers, numOutputClasses)
+		numHiddenLayers, numOutputClasses, dropout_prob)
 
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
 	local numTotalFeatures = numTimePoints * numInputUnits
 	assert(egInputBatch and numHiddenUnits and numHiddenLayers and numOutputClasses)
 	assert(numHiddenLayers >= 0)
+	dropout_prob = dropout_prob or -1
 
 	local model = nn.Sequential()
+	if dropout_prob > 0 then
+		model:add(nn.Dropout(dropout_prob))
+	end
 	model:add(nn.View(-1):setNumInputDims(2)) --flatten
 
 	if numHiddenLayers > 1 then
@@ -41,7 +45,7 @@ end
 
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createMaxTempConvClassificationNetwork = function(egInputBatch, numHiddenUnits, 
-		numHiddenLayers, numOutputClasses)
+		numHiddenLayers, numOutputClasses, dropout_prob)
 
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
@@ -50,7 +54,12 @@ M.createMaxTempConvClassificationNetwork = function(egInputBatch, numHiddenUnits
 	assert(numHiddenUnits >= numOutputClasses, 
 		'Not advisable to have fewer than numOutputClasses hidden units.')
 	print('numOutputClasses' .. numOutputClasses)
+	dropout_prob = dropout_prob or -1
+
 	local model = nn.Sequential()
+	if dropout_prob > 0 then
+		model:add(nn.Dropout(dropout_prob))
+	end
 	tempConv = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)
 
 	model:add(tempConv)
@@ -90,7 +99,7 @@ end
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createNoMaxTempConvClassificationNetwork = function(...)
   local args, egInputBatch, numHiddenUnits, numPostConvHiddenLayers, 
-      numOutputClasses = dok.unpack(
+      numOutputClasses, dropout_prob = dok.unpack(
       {...},
       'createNoMaxTempConvClassificationNetwork',
       'Make a convolution ',
@@ -100,7 +109,8 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
       {arg='numPostConvHiddenLayers',type='number',help='number of hidden ' .. 
         'layers excluding the output filters we get when we do our conv', 
         req=true},
-      {arg='numOutputClasses',type='number',help='', req=false, default=nil}
+      {arg='numOutputClasses',type='number',help='', req=false, default=nil},
+      {arg='dropout_prob',type='number',help='', req=false, default=-1}
   )
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
@@ -113,6 +123,9 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
 	numOutputClasses = numOutputClasses or 2
 
 	local model = nn.Sequential()
+	if dropout_prob > 0 then
+		model:add(nn.Dropout(dropout_prob))
+	end
 	tempConv = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)
 	model:add(tempConv)
 
