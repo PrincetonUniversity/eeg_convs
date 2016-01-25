@@ -6,10 +6,8 @@ M.validLoss = function(fullState)
 	if not fullState.validSetLoss then
 		fullState:add('validSetLoss', torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 	end
-	local modelOut, targets
-	modelOut = fullState.network:forward(fullState.data:getValidData())
-	targets = fullState.data:getValidTargets()
-	fullState.validSetLoss[fullState.trainingIteration] = fullState.criterion:forward(modelOut, targets)
+	fullState.validModelOut = fullState.network:forward(fullState.data:getValidData())
+	fullState.validSetLoss[fullState.trainingIteration] = fullState.criterion:forward(fullState.validModelOut, fullState.data:getValidTargets())
 
 	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
 		print('Validation Loss: ' .. fullState.validSetLoss[fullState.trainingIteration])
@@ -24,11 +22,9 @@ M.testClassAcc = function(fullState, num_classes)
 	end
 	local confMatrix = optim.ConfusionMatrix(num_classes)
 
-	local modelOut, targets
-	modelOut = fullState.network:forward(fullState.data:getTestData())
-	targets = fullState.data:getTestTargets()
+	fullState.testModelOut = fullState.network:forward(fullState.data:getTestData())
 	confMatrix:zero()
-	confMatrix:batchAdd(modelOut,targets)
+	confMatrix:batchAdd(fullState.testModelOut,fullState.data:getTestTargets())
 	confMatrix:updateValids()
 	fullState.testAvgClassAcc[1] = confMatrix.totalValid
 end
@@ -75,10 +71,6 @@ M.testLoss = function(fullState)
 	targets = fullState.data:getTestTargets()
 
 	fullState.testSetLoss[1] = fullState.criterion:forward(modelOut, targets)
-end
-
-M.lookAtDistributionOfMaxValues = function()
-	error('not yet implemented')
 end
 
 M.saveForSNRSweep = function (fullState)
@@ -149,28 +141,52 @@ M.saveForRNGSweep = function(fullState)
 
 end
 
+-- plot helper fns
+M.__plotSymbol = function(plotTable, name, values) 
+  table.insert(plotTable, {name, values, '-'})
+end
+
+M.__makeAndSavePlot = function(saveFile, title, plots)
+  require 'gnuplot'
+  local pngfig = gnuplot.pngfigure(saveFile)
+  gnuplot.plot(plots)
+  gnuplot.grid('on')
+  gnuplot.title(title)
+  gnuplot.plotflush()
+  gnuplot.close(pngfig)
+end
+
+M.__makeAndSaveHist = function(saveFile, title, distribution, bins)
+  require 'gnuplot'
+  local pngfig = gnuplot.pngfigure(saveFile)
+  gnuplot.plot(torch.linspace(1,bins,bins):long(),distribution,'|')
+  gnuplot.grid('on')
+  gnuplot.title(title)
+  gnuplot.plotflush()
+  gnuplot.close(pngfig)
+end
+
+M.__plotHist = function(fullState, title, distribution, bins, classIdx)
+  local newSaveFile, saveFile = '', ''
+  if fullState.args.subj_data.run_single_subj then
+    newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+    saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'Hist_' .. title .. tostring(classIdx))
+  else
+    newSaveFile = fullState.args.save_file
+    saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Hist_' .. title .. tostring(classIdx))
+  end
+	print('Saving plot to: ' .. saveFile)
+  title = title .. ' Max Index Hist: ' .. tostring(classIdx)
+	M.__makeAndSaveHist(saveFile, title, distribution, bins)
+
+end
+
 M.plotForRNGSweep = function(fullState)
-	require 'gnuplot'
-	
-	--helper fns
-	local plotSymbol = function(plotTable, name, values) 
-		table.insert(plotTable, {name, values, '-'})
-	end
-
-	local makeAndSavePlot = function(saveFile, title, plots)
-		local pngfig = gnuplot.pngfigure(saveFile)
-		gnuplot.plot(plots)
-		gnuplot.grid('on')
-		gnuplot.title(title)
-		gnuplot.plotflush()
-		gnuplot.close(pngfig)
-	end
-
-	--make two plots: one for losses, one for classification accuracy
+		--make two plots: one for losses, one for classification accuracy
 	--loss plots
 	local lossPlots = {}
-	plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
-	plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
+	M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
+	M.__plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
   local newSaveFile, saveFile = '', ''
   if fullState.args.subj_data.run_single_subj then
     newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
@@ -180,23 +196,23 @@ M.plotForRNGSweep = function(fullState)
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
   end
 	print('Saving plot to: ' .. saveFile)
-	makeAndSavePlot(saveFile, 'Losses', lossPlots)
+	M.__makeAndSavePlot(saveFile, 'Losses', lossPlots)
 	
 	--class acc plots
 	local classAccPlots = {}
-	plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc)
-	plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc)
+	M.__plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc)
+	M.__plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc)
 	
 	if fullState.trainAvgClassAccSubset then
-		plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset)
+		M.__plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset)
 	end
 
 	if fullState.validAvgClassAccSubset then
-		plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
+		M.__plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
 	end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. saveFile)
-	makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
+	M.__makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
 
 	--if fullState.randomClassAcc then
 		--output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
@@ -211,6 +227,44 @@ M.__getConfusionMatrixName = function(trainValidOrTestData)
 		' "valid" or "test"')
 	local confMatrixKeyName = trainValidOrTestData .. '_confMatrix'
 	return confMatrixKeyName
+end
+
+function M.__fillDistribution(distribution, maxModule)
+  local numExamples = maxModule.output:size(1)
+  local numClasses = maxModule.output:size(3)
+  local maxIdx = 0
+  for exampleIdx = 1, numExamples do
+    for classIdx = 1, numClasses do
+      maxIdx = maxModule.indices[{exampleIdx, 1, classIdx}] + 1 --indices are zero-indexed
+      distribution[{classIdx, maxIdx}] = distribution[{classIdx, maxIdx}] + 1
+    end
+  end
+end
+
+M.getDistributionOfMaxTimepoints = function(fullState)
+  assert(torch.type(fullState.network.modules[3]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
+  local model = fullState.network
+  local maxModule = model.modules[3]
+  local numTimePoints = fullState.data:size(2)
+  local numClasses = fullState.data.num_classes
+  local trainDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
+  local validDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
+  model:evaluate() --make sure we're in evaluation mode
+
+  --training
+  model:forward(fullState.data:getTrainData()) --will populate maxModule.output
+  M.__fillDistribution(trainDistribution, maxModule)
+  for classIdx = 1, numClasses do
+    M.__plotHist(fullState, 'Train', trainDistribution[{classIdx,{}}]:view(-1), numTimePoints, classIdx)
+  end
+
+  --validation
+  model:forward(fullState.data:getValidData()) --will populate maxModule.output
+  M.__fillDistribution(validDistribution, maxModule)
+  for classIdx = 1, numClasses do
+    M.__plotHist(fullState, 'Valid', validDistribution[{classIdx,{}}]:view(-1), numTimePoints, classIdx)
+  end
+  
 end
 
 M.subsetConfusionMatrix = function(fullState, ...)

@@ -248,6 +248,10 @@ M.generalDriver = function()
 
   args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
 
+  if cmdOptions.network_type == 'max_temp_conv' then 
+    args.training.trainingCompleteHooks[4] = sleep_eeg.hooks.getDistributionOfMaxTimepoints
+  end
+
   --make a closure for our early termination fn
   if cmdOptions.early_termination > 0 and cmdOptions.early_termination <= 1 then
     args.training.earlyTerminationFn = function(state)
