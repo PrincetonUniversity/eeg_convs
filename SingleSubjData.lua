@@ -105,9 +105,6 @@ function SingleSubjData:__splitData(...)
 	local regularRNG = torch.getRNGState()
 	torch.manualSeed('102387')
 
-	local testRNG = torch.getRNGState()
-	torch.setRNGState(regularRNG)
-
 	local allTrain, allValid, allTest = torch.LongTensor(), 
 			torch.LongTensor(), torch.LongTensor()
 
@@ -148,8 +145,6 @@ function SingleSubjData:__splitData(...)
         local indices = torch.linspace(1,numTrials,numTrials):long()
 
         --pick test
-        regularRNG = torch.getRNGState()
-        torch.setRNGState(testRNG)
         local randomOrder = torch.randperm(numTrials):long()
         local testIdxes = 
           randomOrder:gather(1,torch.linspace(1,numTestTrials,numTestTrials):long())
@@ -159,8 +154,6 @@ function SingleSubjData:__splitData(...)
         --and validation data sets for different rng seeds
         local nonTestIdxes = randomOrder:gather(1,torch.linspace(numTestTrials+1,numTrials, numNonTestTrials):long())
         nonTestIdxes = trials:gather(1,nonTestIdxes)
-        testRNG = torch.getRNGState()
-        torch.setRNGState(regularRNG)
         
         --pick validation/training indices
         local randomOrder = torch.randperm(nonTestIdxes:numel()):long()
@@ -187,6 +180,9 @@ function SingleSubjData:__splitData(...)
     end
 	end
 	
+  --finally restore RNG state
+  torch.setRNGState(regularRNG)
+
   --finally let's consolidate our data
   self._train_data = SingleSubjData.__getRows(self._all_data,  allTrain)
   -- can use gather (more efficient) for 1D data
@@ -234,6 +230,11 @@ function SingleSubjData:__tostring()
 		.. '% (' .. count .. ')\n'
 
 	end
+
+	outStr = outStr .. 'Split breakdown:\n=================\n'
+  outStr = outStr .. 'Train: ' .. self._train_data:size(1) .. '\n'
+  outStr = outStr .. 'Valid: ' .. self._valid_data:size(1) .. '\n'
+  outStr = outStr .. 'Test: ' .. self._test_data:size(1) .. '\n'
 
 	return outStr
 end
