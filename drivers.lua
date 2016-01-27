@@ -1,9 +1,15 @@
 
 local M = {}
 
---these are settings that we want to share across different drivers, jhust makes it easier
-local SHARED_SETTINGS = {}
-SHARED_SETTINGS.maxTrainingIterations = 10000
+
+local function shouldLog(timer, log_period_in_hours)
+	local timeElapsed = timer:time().real --in seconds
+	timeElapsed = timeElapsed / 60 / 60 --convert to hours
+	if timeElapsed >= log_period_in_hours then
+		return true
+	end
+	return false
+end
 
 M.train = function(fullState)
   assert(torch.type(fullState) == 'sleep_eeg.State')
@@ -30,12 +36,16 @@ M.train = function(fullState)
       fullState:add('trainingIteration',0,true)
     end
 
+	if not fullState.timerSinceLastLog then
+		fullState:add('timerSinceLastLog',torch.Timer(),false)
+	end
+
     --actually run the optimizer
     local shouldTerminateEarly = false
     local start = torch.tic()
     print('Starting to train...')
     while fullState.trainingIteration < options.maxTrainingIterations 
-    and (not shouldTerminateEarly) do
+      and (not shouldTerminateEarly) do
 
       fullState.trainingIteration = fullState.trainingIteration + 1
 
@@ -62,6 +72,17 @@ M.train = function(fullState)
         start = torch.tic()
         collectgarbage()
       end
+
+	  if options.log_period_in_hours and #options.periodicLogHooks > 0 
+		  and shouldLog(fullState.timerSinceLastLog, options.log_period_in_hours) then
+
+		print('Executing periodic logging...')
+	    for hookIdx = 1, #options.periodicLogHooks do
+	      options.periodicLogHooks[hookIdx](fullState)
+	    end
+	    fullState.timerSinceLastLog:reset()
+
+	  end
     end
 
     --finally, if we have any hooks to eecute after completion
@@ -126,6 +147,7 @@ local initArgs = function()
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
   cmd:option('-subj_index', 0, 'subject index, not ID. only valid for run_single_subj = true')
   cmd:option('-float_precision', false, 'whether or not to load data and optimize using float precision. Otherwise, use double ')
+  cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -205,12 +227,15 @@ M.generalDriver = function()
   args.network.dropout_prob = cmdOptions.dropout_prob
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
+  --if period <= 0, set to nil so we never try to execute periodicLogHooks
+  args.training.log_period_in_hours = cmdOptions.log_period_in_hours > 0 and cmdOptions.log_period_in_hours or nil
   args.training.optimName = cmdOptions.optim
   args.training.learningRate = cmdOptions.learning_rate
   args.training.maxTrainingIterations =  cmdOptions.max_iterations
   args.training.trainingIterationHooks = {} -- populated below
   args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
   args.training.trainingCompleteHooks = {}
+  args.training.periodicLogHooks = {}
 
   if cmdOptions.config_name == '' then
     args.driver_name = makeConfigName(args,cmdOptions) --if no config_name specified, make from args
@@ -255,15 +280,21 @@ M.generalDriver = function()
     return sleep_eeg.hooks.randomClassAcc(state, subj_data.num_classes)
   end
 
-  args.training.trainingCompleteHooks[2] = function(state)
-    return sleep_eeg.hooks.saveForRNGSweep(state)
-  end
+  args.training.trainingCompleteHooks[2] = sleep_eeg.hooks.saveForRNGSweep
 
   args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
 
   if cmdOptions.network_type == 'max_temp_conv' then 
     args.training.trainingCompleteHooks[4] = sleep_eeg.hooks.getDistributionOfMaxTimepoints
   end
+
+  --periodic logging hooks
+  args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
+
+  if cmdOptions.network_type == 'max_temp_conv' then 
+    args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
+  end
+
 
   --make a closure for our early termination fn
   if cmdOptions.early_termination > 0 and cmdOptions.early_termination <= 1 then
