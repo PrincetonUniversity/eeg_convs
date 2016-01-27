@@ -99,6 +99,9 @@ local makeConfigName = function(args, cmdOptions)
   if cmdOptions.run_single_subj then 
     name = name .. 'PerSubj'
   end
+  if cmdOptions.float_precision then
+	  name = name .. 'Single'
+  end
   return name
 end
 
@@ -122,6 +125,7 @@ local initArgs = function()
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
   cmd:option('-subj_index', 0, 'subject index, not ID. only valid for run_single_subj = true')
+  cmd:option('-float_precision', false, 'whether or not to load data and optimize using float precision. Otherwise, use double ')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -136,9 +140,15 @@ M.generalDriver = function()
   --all arguments we will ever need to run this function
   --create sim data
   args = {}
+  args.rng_seed = '102387'--TODO: rng state is NOT saved right now
+  args.float_precision = cmdOptions.float_precision
+
+  if args.float_precision then
+	  torch.setdefaulttensortype('torch.FloatTensor')
+  end
+
   args.subj_data = {}
 
-  args.rng_seed = '102387'--TODO: rng state is NOT saved right now
 
   --subj data arguments
   args.subj_data.isSim = cmdOptions.simulated >= 0
@@ -152,6 +162,9 @@ M.generalDriver = function()
     fileNameRoot = 'wake_ERP_cuelocked_all_4ms'
   else
     fileNameRoot = 'sleep_ERP_cuelocked_all_4ms'
+  end
+  if args.float_precision then
+	  fileNameRoot = fileNameRoot .. 'Single'
   end
   if args.subj_data.isSim then
     args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim.mat'

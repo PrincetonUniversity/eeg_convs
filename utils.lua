@@ -253,18 +253,24 @@ M.splitDataBasedOnLabels = function(data, labels)
 end
 
 M.getGitCommitNumAndHash = function()
-	local io = require 'io'
-	--short version of git commit hash
-	local handle = io.popen('git log -n 1 --pretty=format:"%h" ')
-	local commitHash = handle:read("*a")
-	handle:close()
-	--tells us which commit number we are on, basically so that
-	--we know the order of our commits
-	local handle = io.popen('git rev-list --count HEAD')
-	print(handle)
-	local commitNum = handle:read("*a")
-	handle:close()
-	return commitNum:gsub("\n","") .. '_' .. commitHash:gsub("\n","")
+	--we cache this result as soon as this script gets require'd because io.popen calls fork() which essentially copies the current process's allocated memory
+	if not M.__gitCommitNumAndHash then
+		local io = require 'io'
+		--short version of git commit hash
+		local handle = io.popen('git log -n 1 --pretty=format:"%h" ')
+		local commitHash = handle:read("*a")
+		handle:close()
+		--tells us which commit number we are on, basically so that
+		--we know the order of our commits
+		local handle = io.popen('git rev-list --count HEAD')
+		print(handle)
+		local commitNum = handle:read("*a")
+		handle:close()
+		M.__gitCommitNumAndHash = commitNum:gsub("\n","") .. '_' .. commitHash:gsub("\n","")
+	end
+	return M.__gitCommitNumAndHash
 end
+
+M.getGitCommitNumAndHash()
 
 return M

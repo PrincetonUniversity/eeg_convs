@@ -55,7 +55,7 @@ function SingleSubjData:__loadSubjData(filename)
     'One of the following variables is expected, but not present in file:' ..
     'data, subject_ids, data, labels, dimensions, conds')
 
-	self._all_data = loadedData['data']:double():transpose(2,3)
+	self._all_data = loadedData['data']:transpose(2,3)
   loadedData['data'] = nil
 	self.subjectIDs = loadedData['subject_ids']
 	local targets = loadedData['labels']
