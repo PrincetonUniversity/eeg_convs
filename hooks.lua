@@ -182,11 +182,13 @@ M.__plotHist = function(fullState, title, distribution, bins, classIdx)
 end
 
 M.plotForRNGSweep = function(fullState)
+	local iteration = fullState.trainingIteration
 		--make two plots: one for losses, one for classification accuracy
 	--loss plots
 	local lossPlots = {}
-	M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss)
-	M.__plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss)
+
+	M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss[{{1,iteration}}])
+	M.__plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss[{{1,iteration}}])
   local newSaveFile, saveFile = '', ''
   if fullState.args.subj_data.run_single_subj then
     newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
@@ -200,15 +202,15 @@ M.plotForRNGSweep = function(fullState)
 	
 	--class acc plots
 	local classAccPlots = {}
-	M.__plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc)
-	M.__plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc)
+	M.__plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc[{{1,iteration}}])
+	M.__plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc[{{1,iteration}}])
 	
 	if fullState.trainAvgClassAccSubset then
-		M.__plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset)
+		M.__plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset[{{1,iteration}}])
 	end
 
 	if fullState.validAvgClassAccSubset then
-		M.__plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset)
+		M.__plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset[{{1,iteration}}])
 	end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. saveFile)
@@ -242,9 +244,13 @@ function M.__fillDistribution(distribution, maxModule)
 end
 
 M.getDistributionOfMaxTimepoints = function(fullState)
-  assert(torch.type(fullState.network.modules[3]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
+  local moduleNumber = 3
+  if fullState.args.network.dropout_prob > 0 then
+	  moduleNumber = 4 --+1 because dropout module
+  end
+  assert(torch.type(fullState.network.modules[moduleNumber]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
   local model = fullState.network
-  local maxModule = model.modules[3]
+  local maxModule = model.modules[moduleNumber]
   local numTimePoints = fullState.data:size(2)
   local numClasses = fullState.data.num_classes
   local trainDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
