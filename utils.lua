@@ -70,13 +70,14 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	local driverPrefix = base_name 
 	local gitCommitHash = M.getGitCommitNumAndHash()
 	local rngSeedString = 'rng_' .. args.rng_seed 
+  local learningRateString = 'learnRate_' .. string.format("%.0e",args.training.learningRate)
 	local fullPath = paths.concat(dotrc.save_dir,driverPrefix, gitCommitHash)
 	if not paths.dir(fullPath) then
 		paths.mkdir(fullPath)
 	end
 
 	--build filename
-	local filename = rngSeedString .. '.th7'
+	local filename = learningRateString .. '_' .. rngSeedString .. '.th7'
 
 	local fullFilename = paths.concat(fullPath,filename)
 	print(fullFilename)
