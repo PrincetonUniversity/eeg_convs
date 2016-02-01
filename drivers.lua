@@ -114,7 +114,11 @@ local makeConfigName = function(args, cmdOptions)
   if cmdOptions.wake then
     name = name .. 'Wake'
   else
-    name = name .. 'Sleep'
+    if cmdOptions.SO_locked then
+      name = name .. 'SOsleep'
+    else 
+      name = name .. 'Sleep'
+    end
   end
   --per subject indicator
   if cmdOptions.run_single_subj then 
@@ -147,6 +151,7 @@ local initArgs = function()
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
   cmd:option('-subj_index', 0, 'subject index, not ID. only valid for run_single_subj = true')
   cmd:option('-float_precision', false, 'whether or not to load data and optimize using float precision. Otherwise, use double ')
+  cmd:option('-SO_locked', false, 'whether or not to lock to slow-oscillation (SO). only applies if -wake is NOT set')
   cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
   cmd:text()
   opt = cmd:parse(arg)
@@ -183,7 +188,11 @@ M.generalDriver = function()
   if cmdOptions.wake then
     fileNameRoot = 'wake_ERP_cuelocked_all_4ms'
   else
-    fileNameRoot = 'sleep_ERP_cuelocked_all_4ms'
+    if cmdOptions.SO_locked then
+      fileNameRoot = 'sleep_ERP_SOlocked_all_phase_SO1'
+    else
+      fileNameRoot = 'sleep_ERP_cuelocked_all_4ms'
+    end
   end
   if args.float_precision then
 	  fileNameRoot = fileNameRoot .. 'Single'
@@ -218,6 +227,7 @@ M.generalDriver = function()
       args.subj_data.do_split_loso, args.subj_data.percent_valid, 
       args.subj_data.percent_train)
   end
+  print('Loaded data from: ' .. args.subj_data.filename)
 
   --network args
   args.network = {}
