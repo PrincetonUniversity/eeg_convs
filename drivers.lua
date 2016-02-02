@@ -191,7 +191,7 @@ M.generalDriver = function()
     if cmdOptions.SO_locked then
       fileNameRoot = 'sleep_ERP_SOlocked_all_phase_SO1'
     else
-      fileNameRoot = 'sleep_ERP_cuelocked_all_4ms'
+      fileNameRoot = 'sleep_ERP_cuelocked_all_4ms_1000'
     end
   end
   if args.float_precision then
