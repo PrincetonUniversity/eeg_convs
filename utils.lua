@@ -97,6 +97,16 @@ end
 
 
 
+M.replaceTorchSaveWithNetSave = function(torchFilename, suffix)
+	local dir = paths.dirname(torchFilename)
+	local baseFilename = paths.basename(torchFilename,'.th7')
+	if suffix then
+		return paths.concat(dir,baseFilename .. suffix .. '.net')
+	else
+		return paths.concat(dir,baseFilename .. '.net')
+	end
+end
+
 
 M.replaceTorchSaveWithMatSave = function(torchFilename)
 	local dir = paths.dirname(torchFilename)
@@ -273,5 +283,24 @@ M.getGitCommitNumAndHash = function()
 end
 
 M.getGitCommitNumAndHash()
+
+M.ghettoClearStateSequential = function(model)
+  --only works for nn.Container
+  for m = 1, #model.modules do
+    if model.modules[m].clearState then
+      model.modules[m]:clearState()
+    else
+      model.modules[m].output = nil
+      model.modules[m].gradInput = nil
+      --for max pooling modules
+      if model.modules[m].indices then
+        model.modules[m].indices = nil
+      end
+    end
+  end
+  --finally clear out the module itself
+  model.output = nil
+  model.gradInput = nil
+end
 
 return M

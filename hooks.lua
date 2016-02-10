@@ -369,4 +369,20 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 	end
 end
 
+
+M.saveNetwork = function(fullState)
+  local netFileOut = ''
+  if fullState.args.subj_data and fullState.args.subj_data.run_single_subj then
+    local newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+	netFileOut = sleep_eeg.utils.replaceTorchSaveWithNetSave(newSaveFile)
+  else
+	netFileOut = sleep_eeg.utils.replaceTorchSaveWithNetSave(fullState.args.save_file)
+  end
+
+  local net = fullState.network:clone()
+  sleep_eeg.utils.ghettoClearStateSequential(net)
+  torch.save(netFileOut, {net = net, trainingIteration = fullState.trainingIteration} )
+  print('Saved network to: ' .. netFileOut)
+end
+
 return M

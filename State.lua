@@ -1,3 +1,4 @@
+local pretty = require 'pl.pretty'
 local utils = sleep_eeg.utils
 
 local State, super = torch.class('sleep_eeg.State')
@@ -6,6 +7,7 @@ function State:__init(filename)
 	self._loadedFromFile = nil
 	self._saveToFile = nil
 	self._keysToSave = {}
+  self._keysNotSaved = {}
 
 	if filename ~= nil and type(filename) == 'string' then
 		-- means one of two things:
@@ -39,6 +41,8 @@ function State:add(key, value, shouldSave)
 	self[key] = value
 	if shouldSave then
 		self._keysToSave[key] = true
+  else
+    self._keysNotSaved[key] = true
 	end
 end
 
@@ -56,3 +60,21 @@ function State:save(output_file)
 	torch.save(output_file, temp)
 end
 
+function State:__tostring()
+  local outStr = ''
+  if self._loadedFromFile then
+    outStr = 'Loaded from and saves to: ' .. self._loadedFromFile .. '\n'
+  else
+    outStr = 'Saves to: ' .. self._saveToFile .. '\n'
+  end
+  outStr = outStr .. 'Saves the following fields:\n'
+  for k,v in pairs(self._keysToSave) do
+    outStr = outStr .. '\t-' .. k .. '\n'
+  end
+  outStr = outStr .. '\nDoes NOT save the following fields:\n'
+  for k,v in pairs(self._keysNotSaved) do
+    outStr = outStr .. '\t-' .. k .. '\n'
+  end
+  return outStr
+
+end

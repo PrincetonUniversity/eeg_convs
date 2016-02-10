@@ -153,6 +153,7 @@ local initArgs = function()
   cmd:option('-float_precision', false, 'whether or not to load data and optimize using float precision. Otherwise, use double ')
   cmd:option('-SO_locked', false, 'whether or not to lock to slow-oscillation (SO). only applies if -wake is NOT set')
   cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
+  cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -303,6 +304,10 @@ M.generalDriver = function()
 
   if cmdOptions.network_type == 'max_temp_conv' then 
     args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
+  end
+
+  if not cmdOptions.dont_save_network then
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveNetwork)
   end
 
 
