@@ -14,21 +14,6 @@ M.validLoss = function(fullState)
 	end
 end
 
-
-M.testClassAcc = function(fullState, num_classes)
-	--unlike validSetLoss, we only do this once at the end
-	if not fullState.testAvgClassAcc then
-		fullState:add('testAvgClassAcc', torch.FloatTensor{-1.0}, true)
-	end
-	local confMatrix = optim.ConfusionMatrix(num_classes)
-
-	fullState.testModelOut = fullState.network:forward(fullState.data:getTestData())
-	confMatrix:zero()
-	confMatrix:batchAdd(fullState.testModelOut,fullState.data:getTestTargets())
-	confMatrix:updateValids()
-	fullState.testAvgClassAcc[1] = confMatrix.totalValid
-end
-
 --training iteration hook
 M.logWeightToUpdateNormRatio = function(fullState)
 	--only works with optim.adam_log or optim.sgd_log
@@ -63,14 +48,16 @@ end
 M.testLoss = function(fullState)
 	--unlike validSetLoss, we only do this once at the end
 	if not fullState.testSetLoss then
-		fullState:add('testSetLoss', torch.FloatTensor{-1.0}, true)
+		fullState:add('testSetLoss', torch.FloatTensor( fullState.args.training.maxTrainingIterations ):fill(-1.0), true)
 	end
 
 	local modelOut, targets
 	modelOut = fullState.network:forward(fullState.data:getTestData())
 	targets = fullState.data:getTestTargets()
-
-	fullState.testSetLoss[1] = fullState.criterion:forward(modelOut, targets)
+	fullState.testSetLoss[fullState.trainingIteration] = fullState.criterion:forward(modelOut, targets)
+	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
+		print('Test Loss: ' .. fullState.testSetLoss[fullState.trainingIteration])
+	end
 end
 
 M.saveForSNRSweep = function (fullState)
@@ -101,9 +88,11 @@ M.saveForRNGSweep = function(fullState)
 	output.validLoss = fullState.validSetLoss
 	output.trainClassAcc = fullState.trainAvgClassAcc
 	output.validClassAcc = fullState.validAvgClassAcc
+  output.testClassAcc = fullState.testAvgClassAcc
 	--save actual confusion matrix
 	output.trainConfMatrix = fullState[M.__getConfusionMatrixName('train')].mat
 	output.validConfMatrix = fullState[M.__getConfusionMatrixName('valid')].mat
+	output.testConfMatrix = fullState[M.__getConfusionMatrixName('test')].mat
 	if fullState.args.subj_data.run_single_subj then
 		output.subj_id = fullState.data:getSubjID()
 	end
@@ -116,6 +105,11 @@ M.saveForRNGSweep = function(fullState)
 	if fullState.validAvgClassAccSubset then
 		output.validAvgClassAccSubset = fullState.validAvgClassAccSubset
 		output.validConfMatrixSubset = fullState[M.__getConfusionMatrixName('valid') .. '_subset'].mat
+	end
+
+	if fullState.testAvgClassAccSubset then
+		output.testAvgClassAccSubset = fullState.testAvgClassAccSubset
+		output.testConfMatrixSubset = fullState[M.__getConfusionMatrixName('test') .. '_subset'].mat
 	end
 
 	if fullState.randomClassAcc then
@@ -143,13 +137,14 @@ end
 
 -- plot helper fns
 M.__plotSymbol = function(plotTable, name, values) 
-  table.insert(plotTable, {name, values, '-'})
+  table.insert(plotTable, {name, values, 'lines lw 4'})
 end
 
 M.__makeAndSavePlot = function(saveFile, title, plots)
   require 'gnuplot'
   local pngfig = gnuplot.pngfigure(saveFile)
   gnuplot.plot(plots)
+  gnuplot.raw('set terminal png size 1024,768')
   gnuplot.grid('on')
   gnuplot.title(title)
   gnuplot.plotflush()
@@ -159,7 +154,8 @@ end
 M.__makeAndSaveHist = function(saveFile, title, distribution, bins)
   require 'gnuplot'
   local pngfig = gnuplot.pngfigure(saveFile)
-  gnuplot.plot(torch.linspace(1,bins,bins):long(),distribution,'|')
+  gnuplot.raw('set terminal png size 1024,768')
+  gnuplot.plot(torch.linspace(1,bins,bins):long(),distribution,'boxes lw 2')
   gnuplot.grid('on')
   gnuplot.title(title)
   gnuplot.plotflush()
@@ -175,7 +171,7 @@ M.__plotHist = function(fullState, title, distribution, bins, classIdx)
     newSaveFile = fullState.args.save_file
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Hist_' .. title .. tostring(classIdx))
   end
-	print('Saving plot to: ' .. saveFile)
+	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
   title = title .. ' Max Index Hist: ' .. tostring(classIdx)
 	M.__makeAndSaveHist(saveFile, title, distribution, bins)
 
@@ -189,6 +185,10 @@ M.plotForRNGSweep = function(fullState)
 
 	M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss[{{1,iteration}}])
 	M.__plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss[{{1,iteration}}])
+  if fullState.testSetLoss then
+	  M.__plotSymbol(lossPlots, 'Test Loss', fullState.testSetLoss[{{1,iteration}}])
+  end
+
   local newSaveFile, saveFile = '', ''
   if fullState.args.subj_data.run_single_subj then
     newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
@@ -197,13 +197,14 @@ M.plotForRNGSweep = function(fullState)
     newSaveFile = fullState.args.save_file
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
   end
-	print('Saving plot to: ' .. saveFile)
+	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
 	M.__makeAndSavePlot(saveFile, 'Losses', lossPlots)
 	
 	--class acc plots
 	local classAccPlots = {}
 	M.__plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc[{{1,iteration}}])
 	M.__plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc[{{1,iteration}}])
+	M.__plotSymbol(classAccPlots, 'Test Acc', fullState.testAvgClassAcc[{{1,iteration}}])
 	
 	if fullState.trainAvgClassAccSubset then
 		M.__plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset[{{1,iteration}}])
@@ -212,13 +213,12 @@ M.plotForRNGSweep = function(fullState)
 	if fullState.validAvgClassAccSubset then
 		M.__plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset[{{1,iteration}}])
 	end
+	if fullState.testAvgClassAccSubset then
+		M.__plotSymbol(classAccPlots, 'Test Subset', fullState.testAvgClassAccSubset[{{1,iteration}}])
+	end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
-	print('Saving plot to: ' .. saveFile)
+	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
 	M.__makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
-
-	--if fullState.randomClassAcc then
-		--output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
-	--end
 
 end
 
@@ -290,7 +290,7 @@ M.subsetConfusionMatrix = function(fullState, ...)
 	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData) .. '_subset'
 
 	if not fullState[confMatrixKeyName] then
-		fullState[confMatrixKeyName] = optim.SubsetConfusionMatrix(allClassNames, subsetClassIdx)
+		fullState:add(confMatrixKeyName, optim.SubsetConfusionMatrix(allClassNames, subsetClassIdx), false)
 	end
 	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, true)
 
@@ -303,7 +303,7 @@ M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
 
 	if not fullState[confMatrixKeyName] then
 		if classNames then
-			fullState[confMatrixKeyName] = optim.ConfusionMatrix(classNames)
+			fullState:add(confMatrixKeyName, optim.ConfusionMatrix(classNames), false)
 		else
 			error('This should never get here - we can fix this later')
 			fullState[confMatrixKeyName] = optim.ConfusionMatrix()
@@ -333,6 +333,10 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 	elseif trainValidOrTestData == 'test' then
 		modelOut = fullState.network:forward(fullState.data:getTestData())
 		targets = fullState.data:getTestTargets()
+    local testAvgClassAccKey = 'testAvgClassAcc' .. suffix
+		if not fullState[testAvgClassAccKey] then
+			fullState:add(testAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
+		end
 	elseif trainValidOrTestData == 'valid' then
 		modelOut = fullState.network:forward(fullState.data:getValidData())
 		targets = fullState.data:getValidTargets()
@@ -344,6 +348,8 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		error('Invalid value passed as for "trainValidOrTestData"' ..
 				'acceptable values are: "train" "test" or "valid"')
 	end
+
+  --add outputs
 	fullState[confMatrixKeyName]:batchAdd(modelOut, targets)
 
 	if trainValidOrTestData == 'valid' then
@@ -365,6 +371,15 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
 			print('Training accuracy: ' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
+		end
+	end
+  if trainValidOrTestData == 'test' then
+		fullState[confMatrixKeyName]:updateValids() --update confMatrix
+
+		local testAvgClassAccKey = 'testAvgClassAcc' .. suffix
+		fullState[testAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
+			print('Testing accuracy: ' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
 end

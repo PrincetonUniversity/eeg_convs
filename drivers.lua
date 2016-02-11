@@ -154,6 +154,7 @@ local initArgs = function()
   cmd:option('-SO_locked', false, 'whether or not to lock to slow-oscillation (SO). only applies if -wake is NOT set')
   cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
+  cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -234,7 +235,7 @@ M.generalDriver = function()
       args.subj_data.do_split_loso, args.subj_data.percent_valid, 
       args.subj_data.percent_train)
   end
-  print('Loaded data from: ' .. args.subj_data.filename)
+  print('Loaded data from: ' .. sleep_eeg.utils.fileToURI(args.subj_data.filename))
 
   --network args
   args.network = {}
@@ -249,6 +250,7 @@ M.generalDriver = function()
   args.training.optimName = cmdOptions.optim
   args.training.learningRate = cmdOptions.learning_rate
   args.training.maxTrainingIterations =  cmdOptions.max_iterations
+  args.training.showTest = cmdOptions.show_test
   args.training.trainingIterationHooks = {} -- populated below
   args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
   args.training.trainingCompleteHooks = {}
@@ -261,51 +263,72 @@ M.generalDriver = function()
   end
 
   ------------------------------------------------------------------------
-  --populate hooks
+  --populate hooks (training iteration, training complete, periodic logging)
 
-  --TODO: here we define our training iteration hooks, completion hooks, etc
-  --make a closure that will pass in the 'training' arg to our 
+  --training iteration hooks
+  --------------------------
+  --confusion matrices
   local trainConfMatrix = function(state)
     sleep_eeg.hooks.confusionMatrix(state, 'train', subj_data.classnames )
   end
   args.training.trainingIterationHooks[1] = trainConfMatrix
-  --make a closure that will pass in the 'valid' arg to our 
   local validConfMatrix = function(state)
     sleep_eeg.hooks.confusionMatrix(state, 'valid', subj_data.classnames)
   end
   args.training.trainingIterationHooks[2] = validConfMatrix
-  args.training.trainingIterationHooks[3] = sleep_eeg.hooks.validLoss
-  args.training.trainingIterationHooks[4] = sleep_eeg.hooks.logWeightToUpdateNormRatio
+  if args.training.showTest then 
+    local testConfHook = function(state) 
+      sleep_eeg.hooks.confusionMatrix(state, 'test', subj_data.classnames)
+    end
+    table.insert(args.training.trainingIterationHooks, testConfHook)
+  end
+  --valid/test losses
+  table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.validLoss)
+  if args.training.showTest then
+    table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.testLoss)
+  end
 
+  --add subset conf matrices for wake condition
   if args.subj_data.wake then
     --make a closure that will pass in the 'train' arg to a "subsetConfusionMatrix"
     --which only cares about performance on a subset of all possible classes
     local trainConfSubsetMatrix = function(state)
       sleep_eeg.hooks.subsetConfusionMatrix(state, 'train', subj_data.classnames, {1,2})--only do faces and places
     end
-    args.training.trainingIterationHooks[5] = trainConfSubsetMatrix
+    table.insert(args.training.trainingIterationHooks, trainConfSubsetMatrix)
 
     --make a closure that will pass in the 'valid' arg to subsetConfusionMatrix
     local validConfSubsetMatrix = function(state)
       sleep_eeg.hooks.subsetConfusionMatrix(state, 'valid', subj_data.classnames, {1,2})
     end
-    args.training.trainingIterationHooks[6] = validConfSubsetMatrix
+    table.insert(args.training.trainingIterationHooks, validConfSubsetMatrix)
+
+    if args.training.showTest then
+      local testSubsetConfHook = function(state) 
+        sleep_eeg.hooks.subsetConfusionMatrix(state, 'test', subj_data.classnames, {1,2})
+      end
+      table.insert(args.training.trainingIterationHooks, testSubsetConfHook)
+    end
   end
+  --misc
+  table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.logWeightToUpdateNormRatio)
 
   --Training Completed Hooks
+  --------------------------
   args.training.trainingCompleteHooks[1] = function(state)
     return sleep_eeg.hooks.randomClassAcc(state, subj_data.num_classes)
   end
 
-  args.training.trainingCompleteHooks[2] = sleep_eeg.hooks.saveForRNGSweep
+  table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.saveForRNGSweep)
 
-  args.training.trainingCompleteHooks[3] = sleep_eeg.hooks.plotForRNGSweep
+  table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.plotForRNGSweep)
 
   if cmdOptions.network_type == 'max_temp_conv' then 
-    args.training.trainingCompleteHooks[4] = sleep_eeg.hooks.getDistributionOfMaxTimepoints
+    table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.getDistributionOfMaxTimepoints)
   end
 
-  --periodic logging hooks
+  --Periodic Logging Hooks
+  --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
 
   if cmdOptions.network_type == 'max_temp_conv' then 
@@ -317,6 +340,8 @@ M.generalDriver = function()
   end
 
 
+  --Early Termination Hook
+  --------------------------
   --make a closure for our early termination fn
   if cmdOptions.early_termination > 0 and cmdOptions.early_termination <= 1 then
     args.training.earlyTerminationFn = function(state)

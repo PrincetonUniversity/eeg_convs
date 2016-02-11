@@ -303,4 +303,11 @@ M.ghettoClearStateSequential = function(model)
   model.gradInput = nil
 end
 
+M.fileToURI = function(file)
+  --makes it so that when we print this in gnome-terminal,
+  --it gets recognized as URI which we can click and open
+  --from the terminal!
+  return 'file://' .. file
+end
+
 return M

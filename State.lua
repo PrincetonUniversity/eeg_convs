@@ -63,9 +63,9 @@ end
 function State:__tostring()
   local outStr = ''
   if self._loadedFromFile then
-    outStr = 'Loaded from and saves to: ' .. self._loadedFromFile .. '\n'
+    outStr = 'Loaded from and saves to: ' .. sleep_eeg.utils.fileToURI(self._loadedFromFile) .. '\n'
   else
-    outStr = 'Saves to: ' .. self._saveToFile .. '\n'
+    outStr = 'Saves to: ' .. sleep_eeg.utils.fileToURI(self._saveToFile) .. '\n'
   end
   outStr = outStr .. 'Saves the following fields:\n'
   for k,v in pairs(self._keysToSave) do
