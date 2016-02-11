@@ -136,7 +136,7 @@ local initArgs = function()
   cmd:text('Neural Networks for EEG')
   cmd:text()
   cmd:text('Options')
-  cmd:option('-simulated', -1, '-1 = no sim data, 0 = basic, 1 = noisy, 2 = temp conv')
+  cmd:option('-simulated', -1, '-1 = no sim data, 1 = basic, 2 = no signal, 3 = basic + noise (not implemented yet)')
   cmd:option('-percent_train', 65, 'percent of data to use for training')
   cmd:option('-percent_valid', 20, 'percent of data to use for validation')
   cmd:option('-loso',false, 'leave-one-subject-out validation? NOTE: currently not implemented')
@@ -179,7 +179,7 @@ M.generalDriver = function()
 
 
   --subj data arguments
-  args.subj_data.isSim = cmdOptions.simulated >= 0
+  args.subj_data.isSim = cmdOptions.simulated >= 1
   args.subj_data.percent_train = cmdOptions.percent_train
   args.subj_data.percent_valid = cmdOptions.percent_valid
   args.subj_data.do_split_loso = cmdOptions.loso
@@ -199,7 +199,13 @@ M.generalDriver = function()
 	  fileNameRoot = fileNameRoot .. 'Single'
   end
   if args.subj_data.isSim then
-    args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim.mat'
+    if cmdOptions.simulated == 2 then
+      args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim2.mat'
+    elseif cmdOptions.simulated == 1 then
+      args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim1.mat'
+    else
+      error('Unknown or unimplemented simulated data type.  Only valid values are sim_type = 1 and sim_type == 2, sim_type == 3 yet to be implemented')
+    end
   else
     args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '.mat'
   end
