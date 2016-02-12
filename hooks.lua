@@ -10,8 +10,18 @@ M.validLoss = function(fullState)
 	fullState.validSetLoss[fullState.trainingIteration] = fullState.criterion:forward(fullState.validModelOut, fullState.data:getValidTargets())
 
 	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-		print('Validation Loss: ' .. fullState.validSetLoss[fullState.trainingIteration])
-	end
+    print('Validation Loss: ' .. fullState.validSetLoss[fullState.trainingIteration])
+  end
+  if not fullState.plotting then
+    fullState.plotting = {}
+  end
+
+  if not fullState.plotting.losses then
+    fullState.plotting.losses = {}
+  end
+  if not fullState.plotting.losses.validSetLoss then
+    fullState.plotting.losses.validSetLoss = 'validSetLoss'
+  end
 end
 
 --training iteration hook
@@ -24,55 +34,71 @@ M.logWeightToUpdateNormRatio = function(fullState)
 end
 
 M.randomClassAcc = function(fullState, num_classes)
-	local randomData = fullState.data:getTestData():clone():normal(0,3)
-	local randomTargets = fullState.data:getTestTargets():clone():random(1,num_classes)
+  --we don't want to do this
+  if fullState.args.subj_data.predict_subj then
+    fullState.randomClassAcc = -1
+  else
+    local randomData = fullState.data:getTestData():clone():normal(0,3)
+    local randomTargets = fullState.data:getTestTargets():clone():random(1,num_classes)
 
-	local confMatrix = optim.ConfusionMatrix(num_classes)
-	confMatrix:zero()
+    local confMatrix = optim.ConfusionMatrix(num_classes)
+    confMatrix:zero()
 
-	for i = 1,3 do
-		randomData:normal(0,3)
-		randomTargets:random(1,num_classes)
-		local modelOut = fullState.network:forward(randomData)
-		confMatrix:batchAdd(modelOut,randomTargets)
-	end
+    for i = 1,3 do
+      randomData:normal(0,3)
+      randomTargets:random(1,num_classes)
+      local modelOut = fullState.network:forward(randomData)
+      confMatrix:batchAdd(modelOut,randomTargets)
+    end
 
-	confMatrix:updateValids()
-	if not fullState.randomClassAcc then
-		fullState:add('randomClassAcc', confMatrix.totalValid, true)
-	else
-		fullState.randomClassAcc = confMatrix.totalValid
-	end
+    confMatrix:updateValids()
+    if not fullState.randomClassAcc then
+      fullState:add('randomClassAcc', confMatrix.totalValid, true)
+    else
+      fullState.randomClassAcc = confMatrix.totalValid
+    end
+  end
 end
 
 M.testLoss = function(fullState)
-	--unlike validSetLoss, we only do this once at the end
-	if not fullState.testSetLoss then
-		fullState:add('testSetLoss', torch.FloatTensor( fullState.args.training.maxTrainingIterations ):fill(-1.0), true)
-	end
+  --unlike validSetLoss, we only do this once at the end
+  if not fullState.testSetLoss then
+    fullState:add('testSetLoss', torch.FloatTensor( fullState.args.training.maxTrainingIterations ):fill(-1.0), true)
+  end
 
-	local modelOut, targets
-	modelOut = fullState.network:forward(fullState.data:getTestData())
-	targets = fullState.data:getTestTargets()
-	fullState.testSetLoss[fullState.trainingIteration] = fullState.criterion:forward(modelOut, targets)
-	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-		print('Test Loss: ' .. fullState.testSetLoss[fullState.trainingIteration])
-	end
+  local modelOut, targets
+  modelOut = fullState.network:forward(fullState.data:getTestData())
+  targets = fullState.data:getTestTargets()
+  fullState.testSetLoss[fullState.trainingIteration] = fullState.criterion:forward(modelOut, targets)
+  if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
+    print('Test Loss: ' .. fullState.testSetLoss[fullState.trainingIteration])
+  end
+  if not fullState.plotting then
+    fullState.plotting = {}
+  end
+
+  if not fullState.plotting.losses then
+    fullState.plotting.losses = {}
+  end
+
+  if not fullState.plotting.testSetLoss then
+    fullState.plotting.losses.testSetLoss = 'testSetLoss'
+  end
 end
 
 M.saveForSNRSweep = function (fullState)
-	local matio = require 'matio'
-	-- we want to get
-	local output = {}
-	output.trainLoss = fullState.trainSetLoss
-	output.testLoss = fullState.testSetLoss
-	output.trainClassAcc = fullState.trainAvgClassAcc
-	output.testClassAcc = fullState.testAvgClassAcc
-	output.args = sleep_eeg.utils.copyArgsRemoveUnsupportedMatioTypes(fullState.args)
-	--TODO: see if we can save a table somehow!
-	--local shortenedArgs = {}
-	--shortenedArgs.sim_data = fullState.args.sim_data
-	--output.args = shortenedArgs
+  local matio = require 'matio'
+  -- we want to get
+  local output = {}
+  output.trainLoss = fullState.trainSetLoss
+  output.testLoss = fullState.testSetLoss
+  output.trainClassAcc = fullState.trainAvgClassAcc
+  output.testClassAcc = fullState.testAvgClassAcc
+  output.args = sleep_eeg.utils.copyArgsRemoveUnsupportedMatioTypes(fullState.args)
+  --TODO: see if we can save a table somehow!
+  --local shortenedArgs = {}
+  --shortenedArgs.sim_data = fullState.args.sim_data
+  --output.args = shortenedArgs
 	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(fullState.args.save_file)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
@@ -82,6 +108,52 @@ M.saveForSNRSweep = function (fullState)
 end
 
 M.saveForRNGSweep = function(fullState)
+	local matio = require 'matio' 
+	local output ={}
+  --add losses
+	output.trainLoss = fullState.trainSetLoss
+  for k,v in pairs(fullState.plotting.losses) do
+    output[k] = fullState[v]
+  end
+
+  --add accuracy and the confusion matrices behind them
+  for k,v in pairs(fullState.plotting.accuracy) do
+    output[v] = fullState[v]
+    if fullState[k] and fullState[k].mat then --confusion matrix
+      output[k] = fullState[k].mat
+    end
+  end
+
+	if fullState.args.subj_data.run_single_subj then
+		output.subj_id = fullState.data:getSubjID()
+	end
+
+	if fullState.randomClassAcc then
+		output.randomClassAcc = torch.FloatTensor{fullState.randomClassAcc}
+	end
+
+	--save weight to update ratio
+	output.weightToUpdateNormRatio = fullState.weightToUpdateNormRatio
+
+	local newSaveFile
+	if fullState.args.subj_data and fullState.args.subj_data.run_single_subj then
+		newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+	else
+		newSaveFile = fullState.args.save_file
+	end
+
+	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(newSaveFile)
+	matio.save(matFileOut, output)
+	print('Saved .mat file to: ' .. matFileOut)
+	print('____________________________________________________')
+  if not fullState.args.subj_data.predict_subj then --just annoying to do otherwise
+    print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+    print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
+  end
+
+end
+
+M.saveForRNGSweepOLD= function(fullState)
 	local matio = require 'matio' 
 	local output ={}
 	output.trainLoss = fullState.trainSetLoss
@@ -143,8 +215,9 @@ end
 M.__makeAndSavePlot = function(saveFile, title, plots)
   require 'gnuplot'
   local pngfig = gnuplot.pngfigure(saveFile)
+  gnuplot.raw('set key outside')
   gnuplot.plot(plots)
-  gnuplot.raw('set terminal png size 1024,768')
+  gnuplot.raw('set terminal png size 2048,768')
   gnuplot.grid('on')
   gnuplot.title(title)
   gnuplot.plotflush()
@@ -183,10 +256,10 @@ M.plotForRNGSweep = function(fullState)
 	--loss plots
 	local lossPlots = {}
 
-	M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss[{{1,iteration}}])
-	M.__plotSymbol(lossPlots, 'Valid Loss', fullState.validSetLoss[{{1,iteration}}])
-  if fullState.testSetLoss then
-	  M.__plotSymbol(lossPlots, 'Test Loss', fullState.testSetLoss[{{1,iteration}}])
+  M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss[{{1,iteration}}])
+  for k,v in pairs(fullState.plotting.losses) do
+    local keyName = v
+    M.__plotSymbol(lossPlots, k, fullState[keyName][{{1,iteration}}])
   end
 
   local newSaveFile, saveFile = '', ''
@@ -202,32 +275,27 @@ M.plotForRNGSweep = function(fullState)
 	
 	--class acc plots
 	local classAccPlots = {}
-	M.__plotSymbol(classAccPlots, 'Train Acc', fullState.trainAvgClassAcc[{{1,iteration}}])
-	M.__plotSymbol(classAccPlots, 'Valid Acc', fullState.validAvgClassAcc[{{1,iteration}}])
-	M.__plotSymbol(classAccPlots, 'Test Acc', fullState.testAvgClassAcc[{{1,iteration}}])
-	
-	if fullState.trainAvgClassAccSubset then
-		M.__plotSymbol(classAccPlots, 'Train Subset', fullState.trainAvgClassAccSubset[{{1,iteration}}])
-	end
-
-	if fullState.validAvgClassAccSubset then
-		M.__plotSymbol(classAccPlots, 'Valid Subset', fullState.validAvgClassAccSubset[{{1,iteration}}])
-	end
-	if fullState.testAvgClassAccSubset then
-		M.__plotSymbol(classAccPlots, 'Test Subset', fullState.testAvgClassAccSubset[{{1,iteration}}])
-	end
+  for k,v in pairs(fullState.plotting.accuracy) do
+    local keyName = v
+    M.__plotSymbol(classAccPlots, k, fullState[keyName][{{1,iteration}}])
+  end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
 	M.__makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
 
 end
 
-M.__getConfusionMatrixName = function(trainValidOrTestData)
+M.__getConfusionMatrixName = function(trainValidOrTestData, outputTableIndex)
 	assert(trainValidOrTestData and type(trainValidOrTestData) == 'string')
 	assert(trainValidOrTestData == 'train' or trainValidOrTestData == 'test' or 
 		trainValidOrTestData == 'valid', 'Only valid values are "train", ' ..
 		' "valid" or "test"')
-	local confMatrixKeyName = trainValidOrTestData .. '_confMatrix'
+	local confMatrixKeyName = trainValidOrTestData 
+  if outputTableIndex then
+    confMatrixKeyName = confMatrixKeyName .. outputTableIndex .. '_confMatrix'
+  else
+    confMatrixKeyName = confMatrixKeyName .. '_confMatrix'
+  end
 	return confMatrixKeyName
 end
 
@@ -276,30 +344,32 @@ end
 M.subsetConfusionMatrix = function(fullState, ...)
 	assert(fullState and torch.type(fullState) == 'sleep_eeg.State',
 		'Must pass in an object of type sleep_eeg.State')
-	local args, trainValidOrTestData, allClassNames, subsetClassIdx = dok.unpack(
+	local args, trainValidOrTestData, allClassNames, subsetClassIdx, outputTableIndex = dok.unpack(
 	  {...},
 	  'subsetConfusionMatrix',
 	  'Makes a hook for a confusion matrix that ignores certain outputs',
 	  {arg='trainValidOrTestData', type ='string', help='hook for "train", "valid" or "test" set',req = true},
 	  {arg='allClassNames', type ='table', help='table of class names',req = true},
-	  {arg='subsetClassIdx', type ='table', help='list-like table of class indexes to keep',req = true}
+	  {arg='subsetClassIdx', type ='table', help='list-like table of class indexes to keep',req = true},
+	  {arg='outputTableIndex', type ='number', help='in the case our network output/targets are table, what index into the table do we want',req = false}
 	)
 
 	--this is for the case where we're training a classifier on multiple classes, but 
 	--we just want to consider the accuracy for a subset of those classes
-	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData) .. '_subset'
+	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData, outputTableIndex) .. '_subset'
 
 	if not fullState[confMatrixKeyName] then
 		fullState:add(confMatrixKeyName, optim.SubsetConfusionMatrix(allClassNames, subsetClassIdx), false)
 	end
-	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, true)
+
+	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, true, outputTableIndex)
 
 end
 
-M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
+M.confusionMatrix = function(fullState, trainValidOrTestData, classNames, outputTableIndex)
 	local optim = require 'optim'
 	trainValidOrTestData = trainValidOrTestData or 'train' --valid values = 'train', 'test', 'valid'
-	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData)
+	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData, outputTableIndex)
 
 	if not fullState[confMatrixKeyName] then
 		if classNames then
@@ -310,40 +380,71 @@ M.confusionMatrix = function(fullState, trainValidOrTestData, classNames)
 		end
 	end
 
-	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, false)
+	M.__updateConfusionMatrix(fullState, trainValidOrTestData, confMatrixKeyName, false, outputTableIndex)
 end
 
-M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrixKeyName, isSubset)
+M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrixKeyName, isSubset, outputTableIndex)
 	local suffix = ''
 	if isSubset then 
 		suffix = "Subset"
 	end
 
+  local getOutput = function(data)
+    if not outputTableIndex then
+      return data
+    else
+      return data[outputTableIndex]
+    end
+  end
+
+  --where we list fields to plot
+  if not fullState.plotting then
+    fullState.plotting = {}
+    if not fullState.plotting.accuracy then
+      fullState.plotting.accuracy = {}
+    end
+  end
+
+  local outputIndexString = ''
+  if outputTableIndex then
+    outputIndexString = tostring(outputTableIndex)
+  end
 	--here we actually look into fullState and get it's output, we're breaking generality
 	--here just to get this done
 	fullState[confMatrixKeyName]:zero()
 	local modelOut, targets
 	if trainValidOrTestData == 'train' then
-		modelOut = fullState.network:forward(fullState.data:getTrainData())
-		targets = fullState.data:getTrainTargets()
-		local trainAvgClassAccKey = 'trainAvgClassAcc' .. suffix
+		modelOut = getOutput(fullState.network:forward(fullState.data:getTrainData()))
+		targets = getOutput(fullState.data:getTrainTargets())
+		local trainAvgClassAccKey = 'trainAvgClassAcc' .. outputIndexString .. suffix
 		if not fullState[trainAvgClassAccKey] then
 			fullState:add(trainAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
+    if not fullState.plotting.accuracy[confMatrixKeyName] then
+      fullState.plotting.accuracy[confMatrixKeyName] = trainAvgClassAccKey
+    end
+
 	elseif trainValidOrTestData == 'test' then
-		modelOut = fullState.network:forward(fullState.data:getTestData())
-		targets = fullState.data:getTestTargets()
-    local testAvgClassAccKey = 'testAvgClassAcc' .. suffix
+		modelOut = getOutput(fullState.network:forward(fullState.data:getTestData()))
+		targets = getOutput(fullState.data:getTestTargets())
+    local testAvgClassAccKey = 'testAvgClassAcc' ..  outputIndexString .. suffix
 		if not fullState[testAvgClassAccKey] then
 			fullState:add(testAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
+
+    if not fullState.plotting.accuracy[confMatrixKeyName] then
+      fullState.plotting.accuracy[confMatrixKeyName] = testAvgClassAccKey
+    end
 	elseif trainValidOrTestData == 'valid' then
-		modelOut = fullState.network:forward(fullState.data:getValidData())
-		targets = fullState.data:getValidTargets()
-		local validAvgClassAccKey = 'validAvgClassAcc' .. suffix
+		modelOut = getOutput(fullState.network:forward(fullState.data:getValidData()))
+		targets = getOutput(fullState.data:getValidTargets())
+		local validAvgClassAccKey = 'validAvgClassAcc' .. outputIndexString .. suffix
 		if not fullState[validAvgClassAccKey] then
 			fullState:add(validAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
+    if not fullState.plotting.accuracy[confMatrixKeyName] then
+      fullState.plotting.accuracy[confMatrixKeyName] = validAvgClassAccKey
+    end
 	else
 		error('Invalid value passed as for "trainValidOrTestData"' ..
 				'acceptable values are: "train" "test" or "valid"')
@@ -355,31 +456,31 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 	if trainValidOrTestData == 'valid' then
 		fullState[confMatrixKeyName]:updateValids() --update confMatrix
 
-		local validAvgClassAccKey = 'validAvgClassAcc' .. suffix
+		local validAvgClassAccKey = 'validAvgClassAcc' .. outputIndexString .. suffix
 		fullState[validAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Valid accuracy: ' .. fullState[confMatrixKeyName].totalValid)
+			print('Valid accuracy ' .. (outputTableIndex and outputTableIndex or '' ) ..  ':' .. fullState[confMatrixKeyName].totalValid)
 		end
 	end
 
 	if trainValidOrTestData == 'train' then
 		fullState[confMatrixKeyName]:updateValids() --update confMatrix
 
-		local trainAvgClassAccKey = 'trainAvgClassAcc' .. suffix
+    local trainAvgClassAccKey = 'trainAvgClassAcc' .. outputIndexString .. suffix
 		fullState[trainAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Training accuracy: ' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
+			print('Training accuracy ' ..  (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
   if trainValidOrTestData == 'test' then
 		fullState[confMatrixKeyName]:updateValids() --update confMatrix
 
-		local testAvgClassAccKey = 'testAvgClassAcc' .. suffix
+		local testAvgClassAccKey = 'testAvgClassAcc' .. outputIndexString .. suffix
 		fullState[testAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Testing accuracy: ' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
+			print('Testing accuracy ' .. (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
 end

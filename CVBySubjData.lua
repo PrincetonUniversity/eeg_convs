@@ -12,7 +12,8 @@ local CVBySubjData = torch.class('sleep_eeg.CVBySubjData', 'sleep_eeg.CVData')
 CVBySubjData.PERCENT_TEST = 15
 
 function CVBySubjData:__init(...)
-  local args, filename, do_split_loso, percent_valid, percent_train = dok.unpack(
+  local args, filename, do_split_loso, percent_valid, percent_train,
+  use_subjects_as_targets = dok.unpack(
     {...},
     'CVBySubjData',
     'Loads subject data and splits it into training, validation, and test sets',
@@ -22,11 +23,13 @@ function CVBySubjData:__init(...)
       'leave-one-subject-out folds? If not, train,test,valid sets will be ' ..
       'across all subjects into a single "fold"', req=true},
 		{arg='percent_valid', type = 'number', help='Percent e.g. 15 to use for validation', req=true},
-		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = true}
+		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = true},
+		{arg='use_subjects_as_targets', type ='boolean', help='whether or not to return targets as {class, subjects}', req = true}
    )
 
 	--call our parent constructor 
 	sleep_eeg.CVData.__init(self, ...)
+	self.use_subjects_as_targets = use_subjects_as_targets
 	self:__loadSubjData(filename)
   --self:__initSubjIDAndClassInfo()
   if not do_split_loso then
@@ -67,6 +70,21 @@ function CVBySubjData:__loadSubjData(filename)
 	self._all_targets = torch.squeeze(targets) --remove singleton dimension
 	self.dimensions = loadedData['dimensions']
   self.classnames = loadedData['conds']
+
+    --we're going to convert subject_ids into indices so that we can use those 
+	--as labels
+	local subj_idx_dic = {}
+	local subj_counter = 0
+	local trial_counter = 0
+	self._all_subj_idxs = torch.LongTensor(targets:numel())
+	for k,v in ipairs(self.subjectIDs) do
+	  trial_counter = trial_counter + 1
+	  if not subj_idx_dic[v] then
+		  subj_counter = subj_counter + 1
+		  subj_idx_dic[v] = subj_counter
+	  end
+	  self._all_subj_idxs[trial_counter] = subj_idx_dic[v]
+	end
   
 	--here we're going to make a dataframe for the trial information which
 	--gives us an easy way to query trials by subject number
@@ -119,7 +137,9 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 	local subj_counts = {}
 	local class_counts = {}
 	local total_trial_count = 0
-	for _, subj_id in ipairs(self.subj_ids) do
+	self.num_subjects = 0
+	for subj_idx, subj_id in ipairs(self.subj_ids) do
+		self.num_subjects = self.num_subjects + 1
 		for _, class in ipairs(self.classes) do
 			local queryCondition = {subj_id = subj_id, class = class}
 			local trials = self.dataframe:query('inter',queryCondition, {'trial'}).trial
@@ -191,16 +211,20 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
   -- can use more gather (more efficient) for 1D data
   self._train_labels = torch.gather(self._all_targets, 1, allTrain) 
+  self._train_subjs = torch.gather(self._all_subj_idxs, 1, allTrain) 
 
   self._valid_data = CVBySubjData.__getRows(self._all_data, allValid)
   self._valid_labels = torch.gather(self._all_targets, 1, allValid)
+  self._valid_subjs = torch.gather(self._all_subj_idxs, 1, allValid) 
 
   self._test_data = CVBySubjData.__getRows(self._all_data, allTest)
   self._test_labels = torch.gather(self._all_targets, 1, allTest)
+  self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
 
   --and we no longer need our self._all_data OR self.dataframe
   self._all_data = nil
   self._all_targets = nil
+  self._all_subj_idxs = nil
   self.dataframe = nil
 
   --and now let's do our normalization
@@ -294,7 +318,11 @@ function CVBySubjData:getTrainData()
 end
 
 function CVBySubjData:getTrainTargets()
-	return self._train_labels
+	if self.use_subjects_as_targets then
+		return {self._train_labels, self._train_subjs}
+	else
+		return self._train_labels
+	end
 end
 
 function CVBySubjData:getTestData()
@@ -302,7 +330,11 @@ function CVBySubjData:getTestData()
 end
 
 function CVBySubjData:getTestTargets()
-	return self._test_labels
+	if self.use_subjects_as_targets then
+		return {self._test_labels, self._test_subjs}
+	else
+		return self._test_labels
+	end
 end
 
 function CVBySubjData:getValidData()
@@ -310,7 +342,11 @@ function CVBySubjData:getValidData()
 end
 
 function CVBySubjData:getValidTargets()
-	return self._valid_labels
+	if self.use_subjects_as_targets then
+		return {self._valid_labels, self._valid_subjs}
+	else
+		return self._valid_labels
+	end
 end
 
 function CVBySubjData:size(...)
