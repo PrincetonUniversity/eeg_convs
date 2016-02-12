@@ -112,15 +112,17 @@ local makeConfigName = function(args, cmdOptions)
     name = name .. simString
   end
   if cmdOptions.wake then
-    name = name .. 'Wake'
+	name = name .. 'Wake'
+  elseif cmdOptions.wake_test then
+	name = name .. 'WakeTest'
   else
     if cmdOptions.SO_locked then
-      name = name .. 'SOsleep'
+	  name = name .. 'SOsleep'
     else 
-      name = name .. 'Sleep'
+	  name = name .. 'Sleep'
     end
   end
-  --per subject indicator
+--per subject indicator
   if cmdOptions.run_single_subj then 
     name = name .. 'PerSubj'
   end
@@ -142,6 +144,7 @@ local initArgs = function()
   cmd:option('-loso',false, 'leave-one-subject-out validation? NOTE: currently not implemented')
   cmd:option('-run_single_subj',false, 'run within subject analysis')
   cmd:option('-wake',false, 'if false, run sleep else run wake')
+  cmd:option('-wake_test',false, 'if true, run waketest ')
   cmd:option('-optim','adam', 'optimizer to use, supported optimizers = "sgd" or "adam"')
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
@@ -186,9 +189,15 @@ M.generalDriver = function()
   args.subj_data.do_split_loso = cmdOptions.loso
   args.subj_data.run_single_subj = cmdOptions.run_single_subj
   args.subj_data.wake = cmdOptions.wake
+  args.subj_data.wake_test = cmdOptions.wake_test
+  if args.subj_data.wake and args.subj_data.wake_test then
+	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
+  end
   local fileName = ''
   if cmdOptions.wake then
     fileNameRoot = 'wake_ERP_cuelocked_all_4ms'
+  elseif cmdOptions.wake_test then 
+    fileNameRoot = 'waketest_all_ERP_cuelocked_all_4ms'
   else
     if cmdOptions.SO_locked then
       fileNameRoot = 'sleep_ERP_SOlocked_all_phase_SO1'
