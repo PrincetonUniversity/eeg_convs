@@ -93,49 +93,6 @@ M.train = function(fullState)
     end
   end
 
-local makeConfigName = function(args, cmdOptions)
-
-  local snake_to_CamelCase = function (s)
-    return s:gsub("_%w", function (u) return u:sub(2,2):upper() end)
-  end
-  local function firstToUpper(s)
-    return s:gsub("^%l", string.upper)
-  end
-
-  local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
-  if cmdOptions.dropout_prob > 0 then
-  	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
-  end
-  --simulated data indicator
-  if cmdOptions.simulated >= 0 then
-    simString = 'Sim' .. tostring(cmdOptions.simulated)
-    name = name .. simString
-  end
-  if cmdOptions.wake then
-	name = name .. 'Wake'
-  elseif cmdOptions.wake_test then
-	name = name .. 'WakeTest'
-  else
-    if cmdOptions.SO_locked then
-	  name = name .. 'SOsleep'
-    else 
-	  name = name .. 'Sleep'
-    end
-  end
---per subject indicator
-  if cmdOptions.run_single_subj then 
-    name = name .. 'PerSubj'
-  end
-  if cmdOptions.float_precision then
-	  name = name .. 'Single'
-  end
-  if cmdOptions.predict_subj then
-    name = name .. 'PredSubj'
-  end
-  name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
-  return name
-end
-
 local initArgs = function()
   local cmd = torch.CmdLine()
   cmd:text()
@@ -281,7 +238,7 @@ M.generalDriver = function()
   args.training.periodicLogHooks = {}
 
   if cmdOptions.config_name == '' then
-    args.driver_name = makeConfigName(args,cmdOptions) --if no config_name specified, make from args
+    args.driver_name = sleep_eeg.utils.makeConfigName(args,cmdOptions) --if no config_name specified, make from args
   else
     args.driver_name = cmdOptions.config_name
   end
