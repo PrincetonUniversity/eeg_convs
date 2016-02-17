@@ -36,7 +36,5 @@ dofile 'SubsetConfusionMatrix.lua'
 
 --this is the end of the module definition
 ------------------------------------------------------------------------
---sleep_eeg.drivers.generalDriver()
---metrics, subj_data, network, args = sleep_eeg.apply_network.run()
 
 return sleep_eeg
