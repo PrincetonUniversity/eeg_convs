@@ -153,7 +153,7 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected"')
+  cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected", and "sum_temp_conv"')
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
   cmd:option('-num_hidden_layers', 1, 'Number of weights between layers, always at least 1 (input --> output), greater than 1 creates hidden layers')
@@ -429,6 +429,13 @@ M.generalDriver = function()
         args.network.numHiddenLayers, state.data.num_classes, 
 		args.network.dropout_prob, args.subj_data.predict_subj, 
 		state.data.num_subjects,args.network)
+    elseif cmdOptions.network_type == 'sum_temp_conv' then 
+      network, criterion = sleep_eeg.models.createSumTempConvClassificationNetwork( 
+        state.data:getTrainData(), args.network.numHiddenUnits, 
+        args.network.numHiddenLayers, state.data.num_classes, 
+		args.network.dropout_prob, args.subj_data.predict_subj, 
+		state.data.num_subjects,args.network)
+
     elseif cmdOptions.network_type == 'no_max_temp_conv' then
       network, criterion = sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
