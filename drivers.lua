@@ -165,6 +165,7 @@ local initArgs = function()
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
+  cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
   cmd:text()
   opt = cmd:parse(arg)
   return opt, cmd
@@ -267,6 +268,7 @@ M.generalDriver = function()
   args.network.numHiddenLayers = cmdOptions.num_hidden_layers
   args.network.num_output_classes = subj_data.num_classes
   args.network.dropout_prob = cmdOptions.dropout_prob
+  args.network.class_to_subj_loss_ratio = cmdOptions.class_to_subj_loss_ratio
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
   --if period <= 0, set to nil so we never try to execute periodicLogHooks
@@ -426,18 +428,18 @@ M.generalDriver = function()
         state.data:getTrainData(), args.network.numHiddenUnits, 
         args.network.numHiddenLayers, state.data.num_classes, 
 		args.network.dropout_prob, args.subj_data.predict_subj, 
-		state.data.num_subjects)
+		state.data.num_subjects,args.network)
     elseif cmdOptions.network_type == 'no_max_temp_conv' then
       network, criterion = sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
         args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, state.data.num_subjects)
+		args.network.dropout_prob, args.subj_data.predict_subj, state.data.num_subjects, args.network)
     elseif cmdOptions.network_type == 'fully_connected' then
       network, criterion = sleep_eeg.models.createFullyConnectedNetwork(
 	  	state.data:getTrainData(), args.network.numHiddenUnits, 
 		args.network.numHiddenLayers, state.data.num_classes, 
 		args.network.dropout_prob, args.subj_data.predict_subj,
-		state.data.num_subjects)
+		state.data.num_subjects, args.network)
     end
     print('making network finished...')
     state:add('network',network, true)

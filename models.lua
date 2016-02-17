@@ -5,7 +5,7 @@ local M = {}
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits, 
 		numHiddenLayers, numOutputClasses, dropout_prob, predict_subj, 
-		numSubjects)
+		numSubjects, net_args)
 
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
@@ -49,7 +49,7 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 
 		criterion = nn.ParallelCriterion()
 		--weight subjects two times as important
-		criterion:add(nn.ClassNLLCriterion(),2)
+		criterion:add(nn.ClassNLLCriterion(),net_args.class_to_subj_loss_ratio)
 		criterion:add(nn.ClassNLLCriterion(),1)
 
 		model:forward(egInputBatch)
@@ -142,7 +142,7 @@ end
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createMaxTempConvClassificationNetwork = function(...)
   local args, egInputBatch, numHiddenUnits, numPostConvHiddenLayers, 
-      numOutputClasses, dropout_prob, predict_subj, numSubjects = dok.unpack(
+      numOutputClasses, dropout_prob, predict_subj, numSubjects, net_args = dok.unpack(
       {...},
       'createMaxTempConvClassificationNetwork',
       'Make a convolution ',
@@ -157,7 +157,8 @@ M.createMaxTempConvClassificationNetwork = function(...)
       {arg='predict_subj',type='number',
         help='whether or not to predict subjects as well as classes', req=false, default=false},
       {arg='numSubjects',type='number',help='only applies if predict_subj is true', 
-        req=false, default=-1}
+        req=false, default=-1},
+      {arg='net_args',type='table',help='', req=true}
   )
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
@@ -202,7 +203,7 @@ M.createMaxTempConvClassificationNetwork = function(...)
 
     criterion = nn.ParallelCriterion()
     --weight subjects two times as important
-		criterion:add(nn.ClassNLLCriterion(),2)
+		criterion:add(nn.ClassNLLCriterion(),net_args.class_to_subj_loss_ratio)
 		criterion:add(nn.ClassNLLCriterion(),1)
 
 		model:forward(egInputBatch)
@@ -255,7 +256,7 @@ end
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createNoMaxTempConvClassificationNetwork = function(...)
   local args, egInputBatch, numHiddenUnits, numPostConvHiddenLayers, 
-      numOutputClasses, dropout_prob, predict_subj, numSubjects = dok.unpack(
+      numOutputClasses, dropout_prob, predict_subj, numSubjects, net_args = dok.unpack(
       {...},
       'createNoMaxTempConvClassificationNetwork',
       'Make a convolution ',
@@ -270,7 +271,8 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
       {arg='predict_subj',type='number',
         help='whether or not to predict subjects as well as classes', req=false, default=false},
       {arg='numSubjects',type='number',help='only applies if predict_subj is true', 
-        req=false, default=-1}
+        req=false, default=-1},
+      {arg='net_args',type='table',help='', req=true}
   )
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
@@ -314,7 +316,7 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
 
     criterion = nn.ParallelCriterion()
     --weight subjects two times as important
-		criterion:add(nn.ClassNLLCriterion(),2)
+		criterion:add(nn.ClassNLLCriterion(),net_args.class_to_subj_loss_ratio)
 		criterion:add(nn.ClassNLLCriterion(),1)
 
 		model:forward(egInputBatch)

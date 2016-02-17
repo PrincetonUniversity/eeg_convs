@@ -303,11 +303,78 @@ M.ghettoClearStateSequential = function(model)
   model.gradInput = nil
 end
 
+--this is because some networks were "delflated" 
+--(using ghettoClearStateSequential) which sets fields  to nil so that they can
+--be saved in a reasonable amount of space on disk.  however, once we load these
+--networks, they error if the fields set to nil are not restated.
+M.ghettoReinflateModel = function(model)
+  for m = 1, #model.modules do
+    if model.modules[m].output == nil then
+      model.modules[m].output = torch.Tensor()
+    end
+    if model.modules[m].gradInput == nil then
+      model.modules[m].gradInput = nil
+    end
+    --for max pooling modules
+    if torch.type(model.modules[m]) == 'nn.TemporalMaxPooling' then
+      if model.modules[m].indices == nil then
+        model.modules[m].indices = torch.Tensor()
+      end
+    end
+  end
+  --just in case we saved a network in training mode
+  model:evaluate()
+end
+
 M.fileToURI = function(file)
   --makes it so that when we print this in gnome-terminal,
   --it gets recognized as URI which we can click and open
   --from the terminal!
   return 'file://' .. file
 end
+
+M.makeConfigName = function(args, cmdOptions)
+
+  local snake_to_CamelCase = function (s)
+    return s:gsub("_%w", function (u) return u:sub(2,2):upper() end)
+  end
+  local function firstToUpper(s)
+    return s:gsub("^%l", string.upper)
+  end
+
+  local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+  if cmdOptions.dropout_prob > 0 then
+  	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
+  end
+  --simulated data indicator
+  if cmdOptions.simulated >= 0 then
+    simString = 'Sim' .. tostring(cmdOptions.simulated)
+    name = name .. simString
+  end
+  if cmdOptions.wake then
+	name = name .. 'Wake'
+  elseif cmdOptions.wake_test then
+	name = name .. 'WakeTest'
+  else
+    if cmdOptions.SO_locked then
+	  name = name .. 'SOsleep'
+    else 
+	  name = name .. 'Sleep'
+    end
+  end
+--per subject indicator
+  if cmdOptions.run_single_subj then 
+    name = name .. 'PerSubj'
+  end
+  if cmdOptions.float_precision then
+	  name = name .. 'Single'
+  end
+  if cmdOptions.predict_subj then
+    name = name .. 'PredSubj' .. cmdOptions.class_to_subj_loss_ratio .. 'to1'
+  end
+  name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
+  return name
+end
+
 
 return M

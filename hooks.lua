@@ -495,10 +495,15 @@ M.saveNetwork = function(fullState)
 	netFileOut = sleep_eeg.utils.replaceTorchSaveWithNetSave(fullState.args.save_file)
   end
 
-  local net = fullState.network:clone()
-  sleep_eeg.utils.ghettoClearStateSequential(net)
-  torch.save(netFileOut, {net = net, trainingIteration = fullState.trainingIteration} )
-  print('Saved network to: ' .. netFileOut)
+  if not fullState.args.subj_data.predict_subj then
+	  local net = fullState.network:clone()
+	  sleep_eeg.utils.ghettoClearStateSequential(net)
+	  torch.save(netFileOut, {net = net, trainingIteration = fullState.trainingIteration} )
+  	  print('Saved network to: ' .. netFileOut)
+  else
+	torch.save(netFileOut, {net = fullState.network, trainingIteration = fullState.trainingIteration} )
+  	print('Saved network to: ' .. netFileOut)
+  end
 end
 
 return M
