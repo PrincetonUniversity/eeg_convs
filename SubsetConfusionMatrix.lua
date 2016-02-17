@@ -89,10 +89,9 @@ function SCM:batchAdd(predictions, targets)
 		local p = self:__replacePrediction(predictions[i])
 		local t = self:__replaceTarget(targets[i])
 		--if t is nil or all zeros that means the target was for a class we don't care about
-		if not t or (torch.isTensor(t) and t:sum() < 1) then
-			return
-		end
-		parent.add(self, p, t)
+    if t and not (torch.isTensor(t) and t:sum() < 1) then
+		  parent.add(self, p, t)
+    end
 
 	end
 end
