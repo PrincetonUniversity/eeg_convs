@@ -312,9 +312,16 @@ function M.__fillDistribution(distribution, maxModule)
 end
 
 M.getDistributionOfMaxTimepoints = function(fullState)
+  --max_temp_conv
   local moduleNumber = 3
   if fullState.args.network.dropout_prob > 0 then
 	  moduleNumber = 4 --+1 because dropout module
+  end
+  --shallow_max_temp_conv
+  if torch.type(fullState.network.modules[2]) == 'nn.TemporalMaxPooling' then
+    moduleNumber = 2
+  elseif torch.type(fullState.network.modules[3]) == 'nn.TemporalMaxPooling' then
+    moduleNumber = 3
   end
   assert(torch.type(fullState.network.modules[moduleNumber]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
   local model = fullState.network
