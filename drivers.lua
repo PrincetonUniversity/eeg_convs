@@ -127,6 +127,7 @@ local initArgs = function()
   cmd:option('-ms', 4, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
   cmd:text()
   opt = cmd:parse(arg)
+  print(opt)
   return opt, cmd
 end
 
