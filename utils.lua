@@ -373,7 +373,38 @@ M.makeConfigName = function(args, cmdOptions)
     name = name .. 'PredSubj' .. cmdOptions.class_to_subj_loss_ratio .. 'to1'
   end
   name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
+  name = name .. '_' .. cmdOptions.ms .. 'ms'
   return name
+end
+
+M.getDataFilenameFromArgs = function(args)
+  local fileName = ''
+  if args.subj_data.wake then
+    fileNameRoot = 'wake_ERP_cuelocked_all_' .. args.subj_data.temporal_resolution .. 'ms_1000'
+  elseif args.subj_data.wake_test then 
+    fileNameRoot = 'waketest_all_ERP_cuelocked_all_' .. args.subj_data.temporal_resolution .. 'ms_1000'
+  else
+    if args.subj_data.SO_locked then
+      fileNameRoot = 'sleep_ERP_SOlocked_all_phase_SO1'
+    else
+      fileNameRoot = 'sleep_ERP_cuelocked_all_' .. args.subj_data.temporal_resolution .. 'ms_1000'
+    end
+  end
+  if args.float_precision then
+	  fileNameRoot = fileNameRoot .. 'Single'
+  end
+
+  if args.subj_data.sim_type > 0 then
+    if args.subj_data.sim_type == 1 or args.subj_data.simulated == 2 then
+      fileName = './torch_exports/' .. fileNameRoot .. '_sim' ..  args.subj_data.sim_type .. '.mat'
+    else
+      error('Unknown or unimplemented simulated data type.  Only valid values are sim_type = 1 and sim_type == 2, sim_type == 3 yet to be implemented')
+    end
+  else
+    fileName = './torch_exports/' .. fileNameRoot .. '.mat'
+  end
+
+  return fileName
 end
 
 
