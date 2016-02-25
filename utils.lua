@@ -407,5 +407,4 @@ M.getDataFilenameFromArgs = function(args)
   return fileName
 end
 
-
 return M

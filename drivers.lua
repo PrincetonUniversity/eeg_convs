@@ -93,7 +93,6 @@ M.train = function(fullState)
     end
   end
 
-
 local initArgs = function()
   local cmd = torch.CmdLine()
   cmd:text()

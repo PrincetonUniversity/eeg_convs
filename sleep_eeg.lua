@@ -18,6 +18,7 @@ sleep_eeg.optimizers = require 'optimizers.lua'
 sleep_eeg.drivers = require 'drivers.lua'
 sleep_eeg.hooks = require 'hooks.lua'
 sleep_eeg.terminators = require 'terminators.lua'
+sleep_eeg.apply_network = require 'apply_network.lua'
 
 --add our torch classes
 dofile 'InputData.lua'
@@ -35,6 +36,5 @@ dofile 'SubsetConfusionMatrix.lua'
 
 --this is the end of the module definition
 ------------------------------------------------------------------------
-sleep_eeg.drivers.generalDriver()
 
 return sleep_eeg
