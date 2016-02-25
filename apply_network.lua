@@ -30,8 +30,10 @@ local initArgs = function()
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-saved_net_path','','file path to saved network we want to apply')
+  cmd:option('-ms', 4, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
   cmd:text()
   opt = cmd:parse(arg)
+  print(opt)
   assert(opt.saved_net_path ~= '', '-saved_net_path is not optional')
   return opt, cmd
 end
@@ -94,7 +96,7 @@ M.run = function()
 
 
   --subj data arguments
-  args.subj_data.isSim = cmdOptions.simulated >= 1
+  args.subj_data.sim_type = cmdOptions.simulated
   args.subj_data.percent_train = cmdOptions.percent_train
   args.subj_data.percent_valid = cmdOptions.percent_valid
   args.subj_data.do_split_loso = cmdOptions.loso
@@ -102,38 +104,15 @@ M.run = function()
   args.subj_data.wake = cmdOptions.wake
   args.subj_data.wake_test = cmdOptions.wake_test
   args.subj_data.predict_subj = cmdOptions.predict_subj
+  args.subj_data.temporal_resolution = cmdOptions.ms
+  args.subj_data.SO_locked = cmdOptions.SO_locked
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
   end
   if cmdOptions.run_single_subj and cmdOptions.predict_subj then
     error("Can't specify -run_single_subj AND -predict_subj flags at the same time. Spoiler alert: it's always the same subject")
   end
-  local fileName = ''
-  if cmdOptions.wake then
-    fileNameRoot = 'wake_ERP_cuelocked_all_4ms'
-  elseif cmdOptions.wake_test then 
-    fileNameRoot = 'waketest_all_ERP_cuelocked_all_4ms'
-  else
-    if cmdOptions.SO_locked then
-      fileNameRoot = 'sleep_ERP_SOlocked_all_phase_SO1'
-    else
-      fileNameRoot = 'sleep_ERP_cuelocked_all_4ms_1000'
-    end
-  end
-  if args.float_precision then
-	  fileNameRoot = fileNameRoot .. 'Single'
-  end
-  if args.subj_data.isSim then
-    if cmdOptions.simulated == 2 then
-      args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim2.mat'
-    elseif cmdOptions.simulated == 1 then
-      args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '_sim1.mat'
-    else
-      error('Unknown or unimplemented simulated data type.  Only valid values are sim_type = 1 and sim_type == 2, sim_type == 3 yet to be implemented')
-    end
-  else
-    args.subj_data.filename = './torch_exports/' .. fileNameRoot .. '.mat'
-  end
+  args.subj_data.filename = sleep_eeg.utils.getDataFilenameFromArgs(args)
 
   --let's populate any job specific args we're sweeping over, because we need to get
   --subject_idx before we can populate subj_data
