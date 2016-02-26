@@ -395,7 +395,7 @@ M.getDataFilenameFromArgs = function(args)
   end
 
   if args.subj_data.sim_type > 0 then
-    if args.subj_data.sim_type == 1 or args.subj_data.simulated == 2 then
+    if args.subj_data.sim_type == 1 or args.subj_data.sim_type == 2 then
       fileName = './torch_exports/' .. fileNameRoot .. '_sim' ..  args.subj_data.sim_type .. '.mat'
     else
       error('Unknown or unimplemented simulated data type.  Only valid values are sim_type = 1 and sim_type == 2, sim_type == 3 yet to be implemented')

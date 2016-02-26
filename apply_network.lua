@@ -28,6 +28,7 @@ local initArgs = function()
   cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
+  cmd:option('-show_all', false, 'only generate and save accuracy on all data if this is true')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-saved_net_path','','file path to saved network we want to apply')
   cmd:option('-ms', 4, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
@@ -158,8 +159,15 @@ M.run = function()
   --the network
   sleep_eeg.utils.ghettoReinflateModel(network)
 
+  local metrics = {'train', 'train_and_valid', 'valid'}
+
   --finally apply the network
-  local metrics = {'train', 'train_and_valid', 'valid', 'test'}
+  if cmdOptions.show_test then
+    table.insert(metrics,'test')
+  end
+  if cmdOptions.show_all then
+    table.insert(metrics,'all')
+  end
   local completed_metrics = M.getClassAccuracy(network, subj_data, metrics, args.subj_data)
 
   print(completed_metrics)
@@ -261,21 +269,23 @@ M.getClassAccuracy = function(network, subj_data, metrics, subj_args)
 
 		--additionally, if we have a network with 5 outputs, then let's add an 
 		--entry for confusion subset matrix
-		local dummyLabels = {labels[1], labels[2], 'Class3', 'Class4', 'Class5'}
-		confMatrix = optim.SubsetConfusionMatrix(dummyLabels, {1,2})
-		confMatrix:zero()
+    if networkOutClasses == 5 then
+      local dummyLabels = {labels[1], labels[2], 'Class3', 'Class4', 'Class5'}
+      confMatrix = optim.SubsetConfusionMatrix(dummyLabels, {1,2})
+      confMatrix:zero()
 
-	    confMatrix:batchAdd(modelOut, targets)
-	    confMatrix:updateValids()
-		metric_name = metric_name .. 'Subset'
+      confMatrix:batchAdd(modelOut, targets)
+      confMatrix:updateValids()
+      metric_name = metric_name .. 'Subset'
 
-		local this_metric = completed_metrics[metric_name] or {}
-	    this_metric[outputTableIndex] = {}
-	    this_metric[outputTableIndex].classAcc = confMatrix.totalValid
-	    this_metric[outputTableIndex].confMat = confMatrix.mat
-	    completed_metrics[metric_name] = this_metric
-
+      local this_metric = completed_metrics[metric_name] or {}
+      this_metric[outputTableIndex] = {}
+      this_metric[outputTableIndex].classAcc = confMatrix.totalValid
+      this_metric[outputTableIndex].confMat = confMatrix.mat
+      completed_metrics[metric_name] = this_metric
     end
+
+  end
 
 	for _,metric_name in pairs(metrics) do
 	  local data, targets = getDataAndTargets(metric_name)
