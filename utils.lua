@@ -374,6 +374,21 @@ M.makeConfigName = function(args, cmdOptions)
   end
   name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
   name = name .. '_' .. cmdOptions.ms .. 'ms'
+
+  if args.subj_data.ERP_diff then
+    name = name .. 'Diff'
+  end
+
+  --for maxPresentations, we just append "maxPres"
+  if args.subj_data.max_presentations >= 1 then
+    name = name .. '_maxPres' .. args.subj_data.max_presentations
+  end
+  
+  --for "ERP_I", we have to replaced cuelocked with cuelocked_I
+  if args.subj_data.ERP_I then
+    name = name .. "_ERP_I"
+  end
+
   return name
 end
 
@@ -390,9 +405,26 @@ M.getDataFilenameFromArgs = function(args)
       fileNameRoot = 'sleep_ERP_cuelocked_all_' .. args.subj_data.temporal_resolution .. 'ms_1000'
     end
   end
+
+  --for ERP_diff, we just replace "ERP" with "ERP_diff"
+  if args.subj_data.ERP_diff then
+    fileNameRoot = fileNameRoot:gsub('ERP','ERP_diff')
+  end
+
+  --for maxPresentations, we just append "maxPres"
+  if args.subj_data.max_presentations >= 1 then
+    fileNameRoot = fileNameRoot .. '_maxPres' .. args.subj_data.max_presentations
+  end
+  
+  --for "ERP_I", we have to replaced cuelocked with cuelocked_I
+  if args.subj_data.ERP_I then
+    fileNameRoot = fileNameRoot:gsub('cuelocked','cuelocked_I')
+  end
+
   if args.float_precision then
 	  fileNameRoot = fileNameRoot .. 'Single'
   end
+
 
   if args.subj_data.sim_type > 0 then
     if args.subj_data.sim_type == 1 or args.subj_data.sim_type == 2 then

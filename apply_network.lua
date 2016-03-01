@@ -32,6 +32,9 @@ local initArgs = function()
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-saved_net_path','','file path to saved network we want to apply')
   cmd:option('-ms', 4, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
+  cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
+  cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
+  cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
@@ -107,6 +110,9 @@ M.run = function()
   args.subj_data.predict_subj = cmdOptions.predict_subj
   args.subj_data.temporal_resolution = cmdOptions.ms
   args.subj_data.SO_locked = cmdOptions.SO_locked
+  args.subj_data.ERP_diff = cmdOptions.ERP_diff
+  args.subj_data.ERP_I = cmdOptions.ERP_I
+  args.subj_data.max_presentations = cmdOptions.max_presentations
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
   end
