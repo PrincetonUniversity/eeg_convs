@@ -103,8 +103,8 @@ M.saveForSNRSweep = function (fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-	print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
-	print('Final Test Class Acc: '  .. output.testClassAcc[fullState.trainingIteration])
+	--print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+	--print('Final Test Class Acc: '  .. output.testClassAcc[fullState.trainingIteration])
 end
 
 M.saveForRNGSweep = function(fullState)
@@ -146,10 +146,10 @@ M.saveForRNGSweep = function(fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-  if not fullState.args.subj_data.predict_subj then --just annoying to do otherwise
-    print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
-    print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
-  end
+  --if not fullState.args.subj_data.predict_subj then --just annoying to do otherwise
+    --print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+    --print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
+  --end
 
 end
 
@@ -202,8 +202,8 @@ M.saveForRNGSweepOLD= function(fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-	print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
-	print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
+	--print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
+	--print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
 
 end
 
