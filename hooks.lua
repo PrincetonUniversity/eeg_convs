@@ -327,7 +327,7 @@ M.getDistributionOfMaxTimepoints = function(fullState)
   assert(torch.type(fullState.network.modules[moduleNumber]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
   local model = fullState.network
   local maxModule = model.modules[moduleNumber]
-  local numTimePoints = fullState.data:size(2)
+  local numTimePoints = model.modules[moduleNumber-1].output:size(2)
   local numClasses = fullState.data.num_classes
   local trainDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
   local validDistribution = torch.LongTensor(numClasses, numTimePoints):zero()

@@ -323,6 +323,7 @@ end
 --be saved in a reasonable amount of space on disk.  however, once we load these
 --networks, they error if the fields set to nil are not restated.
 M.ghettoReinflateModel = function(model)
+  if false then
   for m = 1, #model.modules do
     if model.modules[m].output == nil then
       model.modules[m].output = torch.Tensor()
@@ -336,6 +337,7 @@ M.ghettoReinflateModel = function(model)
         model.modules[m].indices = torch.Tensor()
       end
     end
+  end
   end
   --just in case we saved a network in training mode
   model:evaluate()
