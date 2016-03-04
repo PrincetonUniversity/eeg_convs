@@ -68,7 +68,13 @@ local function sortKeys(t)
     len = len + 1
     keys[len] = k
   end
-  table.sort(keys)
+  --this makes it so that the "first" key in 
+  --alphabetic order gets added last, which 
+  --means we iterate through that dimension first
+  local reverseStringSort = function(a,b)
+    return a > b
+  end
+  table.sort(keys, reverseStringSort)
   return keys
 end
 

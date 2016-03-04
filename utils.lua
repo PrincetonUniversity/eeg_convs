@@ -41,16 +41,25 @@ end
 
 
 M.populateArgsBasedOnJobNumber = function(args)
+  --the prefixed on the key names "e.g. Z in 'Z_subj_idx'"
+  --specify the reverse of the order we want to iterate through
+  --so A is the first dimension that gets iterated, Z is the last
+  --obviously, this limits us to 26 options
 	require 'os'
-	local gridOptions = {
-		rng_seed = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40},
-	}
+	local gridOptions = {}
+ 
   --if we want to run a single subject, then we also have to specify which
   --subj_idx we want to run for this job
   if args.subj_data.run_single_subj then 
     --we have 33 subjects
-    gridOptions.subj_idx = torch.linspace(1,33,33):totable()
+    gridOptions['Z_subj_idx'] = torch.linspace(1,33,33):totable()
   end
+
+  if args.subj_data.do_kfold_split then
+    gridOptions['A_fold_num'] = torch.linspace(1,args.subj_data.num_folds, args.subj_data.num_folds):totable()
+  end
+
+  gridOptions['Y_rng_seed'] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40}
 
 	local job_number = os.getenv('SLURM_ARRAY_TASK_ID')
 	if not job_number then
@@ -58,10 +67,16 @@ M.populateArgsBasedOnJobNumber = function(args)
 	else
 		job_number = tonumber(job_number)-1
 	end
+
 	local options = sleep_eeg.param_sweep.grid({id = job_number},gridOptions)
-	args.rng_seed = options.rng_seed
+	args.rng_seed = options['Y_rng_seed']
+
   if args.subj_data.run_single_subj then
-	  args.subj_data.subj_idx = options.subj_idx
+	  args.subj_data.subj_idx = options['Z_subj_idx']
+  end
+
+  if args.subj_data.do_kfold_split then
+    args.subj_data.fold_num = options['A_fold_num']
   end
 end
 
@@ -374,6 +389,10 @@ M.makeConfigName = function(args, cmdOptions)
   end
   name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
   name = name .. '_' .. cmdOptions.ms .. 'ms'
+
+  if cmdOptions.num_folds then
+    name = name .. 'Fold' .. args.subj_data.fold_num .. 'of' .. args.subj_data.num_folds
+  end
 
   if args.subj_data.ERP_diff then
     name = name .. 'Diff'

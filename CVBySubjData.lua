@@ -12,19 +12,21 @@ local CVBySubjData = torch.class('sleep_eeg.CVBySubjData', 'sleep_eeg.CVData')
 CVBySubjData.PERCENT_TEST = 15
 
 function CVBySubjData:__init(...)
-  local args, filename, do_split_loso, percent_valid, percent_train,
-  use_subjects_as_targets = dok.unpack(
+  local args, filename, do_kfold_split, percent_valid, percent_train,
+  use_subjects_as_targets, percent_in_fold, fold_number= dok.unpack(
     {...},
     'CVBySubjData',
     'Loads subject data and splits it into training, validation, and test sets',
     {arg='filename', type='string', help='MAT filename to load subj data. see ' .. 
       'CVBySubjData:__loadSubjData for variables expected in file', req=true},
-    {arg='do_split_loso',type='boolean', help='should we split our data into ' .. 
-      'leave-one-subject-out folds? If not, train,test,valid sets will be ' ..
-      'across all subjects into a single "fold"', req=true},
-		{arg='percent_valid', type = 'number', help='Percent e.g. 15 to use for validation', req=true},
-		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = true},
-		{arg='use_subjects_as_targets', type ='boolean', help='whether or not to return targets as {class, subjects}', req = true}
+    {arg='do_kfold_split',type='boolean', help='should we split our data into ' .. 
+      'folds? If not, train,test,valid sets will be across all subjects into ' ..
+      'a single "fold". if true, only produce train and test', req=true},
+		{arg='percent_valid', type = 'number', help='Percent e.g. 15 to use for validation', req=false},
+		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = false},
+		{arg='use_subjects_as_targets', type ='boolean', help='whether or not to return targets as {class, subjects}', req = true},
+		{arg='percent_in_fold', type ='boolean', help='percent of data in each fold, only required if do_kfold_split is true', req = false},
+		{arg='fold_number', type ='boolean', help='which fold to test on, only required if do_kfold_split is true', req = false}
    )
 
 	--call our parent constructor 
@@ -32,10 +34,10 @@ function CVBySubjData:__init(...)
 	self.use_subjects_as_targets = use_subjects_as_targets
 	self:__loadSubjData(filename)
   --self:__initSubjIDAndClassInfo()
-  if not do_split_loso then
+  if not do_kfold_split then
     self:__splitDataAcrossSubjs(percent_valid, percent_train)
   else
-    error('LOSO has not yet been implemented')
+    self:__kFoldCrossValAcrossSubjs(percent_in_fold, fold_number)
   end
 end
 
@@ -238,6 +240,150 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   print(self:__tostring())
 end
 
+function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
+	local args, num_folds, fold_idx  = dok.unpack(
+		{...},
+		'__kFoldCrossValAcrossSubjs',
+		'Make data into k folds, preserving ratio of subject/class across each fold\n',
+		{arg='num_folds', type = 'number',help='percent of data that goes into one fold e.g. 10', req=true},
+		{arg='fold_idx', type = 'number',help='which fold to use for training and testing', req=true}
+		)
+  percent_in_fold = 100/num_folds
+  assert(percent_in_fold >1 and percent_in_fold < 100, "Percent fold must be between 1 and 100 exclusively, ya boob!")
+  assert(math.floor(100/percent_in_fold) == (100 / percent_in_fold), "num_folds must divide evenly into 100")
+
+  local indicesBySubjClassPair = {}
+  local countsBySubjClassPair = {}
+  local foldSizePerSubjClassPair = {}
+  local foldTrainIdxs = {}
+  local foldTestIdxs = {}
+
+  local numFolds = 100/percent_in_fold
+
+  --local numTestTrials = math.floor(#trials*CVBySubjData.PERCENT_TEST/100)
+  --local numNonTestTrials = numTrials - numTestTrials
+
+  local regularRNG = torch.getRNGState()
+	torch.manualSeed('102387')
+
+	local subj_counts = {}
+	local class_counts = {}
+	local total_trial_count = 0
+	self.num_subjects = 0
+
+	for subj_idx, subj_id in ipairs(self.subj_ids) do
+		self.num_subjects = self.num_subjects + 1
+    indicesBySubjClassPair[subj_idx] = {}
+    foldSizePerSubjClassPair[subj_idx] = {}
+
+		for _, class in ipairs(self.classes) do
+
+      --get data by subj/class pair
+			local queryCondition = {subj_id = subj_id, class = class}
+			local trials = self.dataframe:query('inter',queryCondition, {'trial'}).trial
+      local numTrials = #trials
+
+      --little book keeping
+			--keep counts per subject
+			if not subj_counts[subj_id] then
+				subj_counts[subj_id] = numTrials
+			else
+				subj_counts[subj_id] = subj_counts[subj_id] + numTrials
+			end
+
+			--keep counts per subject
+			if not class_counts[class] then
+				class_counts[class] = numTrials
+			else
+				class_counts[class] = class_counts[class] + numTrials
+			end
+
+			--keep total counts
+			total_trial_count = total_trial_count + numTrials
+
+
+      --finally split into folds
+      local randomOrder = torch.randperm(#trials):type('torch.LongTensor')
+      indicesBySubjClassPair[subj_idx][class] = torch.LongTensor(trials):index(1,randomOrder)
+
+      local foldSize = math.floor(#trials * percent_in_fold/100)
+
+      --finally for each 
+      for k = 1, numFolds do
+        --these are the indices of the test fold, everything else will be the indices for training for this fold
+        local startIdx = (k-1)*foldSize + 1
+        local endIdx = math.min(#trials,startIdx + foldSize - 1)
+        local testIdxs = torch.linspace(startIdx, endIdx, endIdx - startIdx + 1):long()
+
+        --training indices are anything before and after the testing indices
+        --check "before" indices
+        local trainIdxs = torch.LongTensor()
+        if k > 1 then
+          trainIdxs = torch.linspace(1,startIdx-1,startIdx-1):long()
+        end
+
+        if endIdx+1 <= #trials then --check "after" indices
+          local afterFoldIndices = torch.linspace(endIdx+1, #trials, #trials-(endIdx)):long()
+
+          if trainIdxs:numel()==0 then 
+            trainIdxs = afterFoldIndices
+          else
+            trainIdxs = torch.cat(trainIdxs,afterFoldIndices,1)
+          end
+        end
+
+        --finally store them
+        if not foldTestIdxs[k] then
+          foldTestIdxs[k] = indicesBySubjClassPair[subj_idx][class]:index(1,testIdxs)
+        else -- we concatenate
+          foldTestIdxs[k] = torch.cat(foldTestIdxs[k],indicesBySubjClassPair[subj_idx][class]:index(1,testIdxs))
+        end
+
+        if not foldTrainIdxs[k] then
+          foldTrainIdxs[k] = indicesBySubjClassPair[subj_idx][class]:index(1,trainIdxs)
+        else -- we concatenate
+          foldTrainIdxs[k] = torch.cat(foldTrainIdxs[k],indicesBySubjClassPair[subj_idx][class]:index(1,trainIdxs))
+        end
+
+      end --finish inserting trials into folds
+
+    end
+  end
+
+  --finally restore RNG state
+  torch.setRNGState(regularRNG)
+  local allTrain = foldTrainIdxs[fold_idx]
+  local allTest = foldTestIdxs[fold_idx]
+
+  --finally let's consolidate our data
+  self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
+  -- can use more gather (more efficient) for 1D data
+  self._train_labels = torch.gather(self._all_targets, 1, allTrain) 
+  self._train_subjs = torch.gather(self._all_subj_idxs, 1, allTrain) 
+
+  self._test_data = CVBySubjData.__getRows(self._all_data, allTest)
+  self._test_labels = torch.gather(self._all_targets, 1, allTest)
+  self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
+
+  --and we no longer need our self._all_data OR self.dataframe
+  self._all_data = nil
+  self._all_targets = nil
+  self._all_subj_idxs = nil
+  self.dataframe = nil
+
+  --and now let's do our normalization
+  self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data)
+  sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
+
+  self._num_folds =  num_folds
+  self._fold_num = fold_idx
+  self._subj_counts = subj_counts
+  self._class_counts = class_counts
+  self._total_trial_count = total_trial_count
+  self._subj_class_pair_counts = countsBySubjClassPair
+  print(self:__tostring())
+end
+
 function CVBySubjData:__tostring()
 	local outStr = 'Subject breakdown:\n===================\n'
 	for subj, count in pairs(self._subj_counts) do
@@ -255,9 +401,16 @@ function CVBySubjData:__tostring()
 
 	end
 
-	outStr = outStr .. 'Split breakdown:\n=================\n'
+  if self._fold_num then
+    outStr = outStr .. 'Split breakdown for fold ' .. self._fold_num .. ' of ' 
+      .. self._num_folds .. ' :\n=================\n'
+  else
+    outStr = outStr .. 'Split breakdown:\n=================\n'
+  end
   outStr = outStr .. 'Train: ' .. self._train_data:size(1) .. '\n'
-  outStr = outStr .. 'Valid: ' .. self._valid_data:size(1) .. '\n'
+  if self._valid_data then
+    outStr = outStr .. 'Valid: ' .. self._valid_data:size(1) .. '\n'
+  end
   outStr = outStr .. 'Test: ' .. self._test_data:size(1) .. '\n'
 
 	return outStr
