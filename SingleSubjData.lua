@@ -66,7 +66,7 @@ function SingleSubjData:__loadSubjData(filename)
 	--here we're going to make a dataframe for the trial information which
 	--gives us an easy way to query trials by subject number
 	local numTrials = self._all_data:size(1)
-	local trialNums = torch.linspace(1,numTrials, numTrials):totable()
+	local trialNums = torch.range(1,numTrials):long():totable()
 
 	self.dataframe = DataFrame.new({trial = trialNums, 
 			subj_id = self.subjectIDs, class = self._all_targets:totable()})
@@ -142,17 +142,17 @@ function SingleSubjData:__splitData(...)
         total_trial_count = total_trial_count + numTrials
 
         --now we pick some fixed proportion to be the test set, which is always the same regardless of the rng seed specified elsewhere in the program
-        local indices = torch.linspace(1,numTrials,numTrials):long()
+        local indices = torch.range(1,numTrials):long()
 
         --pick test
         local randomOrder = torch.randperm(numTrials):long()
         local testIdxes = 
-          randomOrder:gather(1,torch.linspace(1,numTestTrials,numTestTrials):long())
+          randomOrder:gather(1,torch.range(1,numTestTrials):long())
         testIdxes = trials:gather(1,testIdxes)
 
         --we do it this way so that we can still get different splits between training
         --and validation data sets for different rng seeds
-        local nonTestIdxes = randomOrder:gather(1,torch.linspace(numTestTrials+1,numTrials, numNonTestTrials):long())
+        local nonTestIdxes = randomOrder:gather(1,torch.range(numTestTrials+1,numTrials):long())
         nonTestIdxes = trials:gather(1,nonTestIdxes)
         
         --pick validation/training indices
@@ -160,10 +160,10 @@ function SingleSubjData:__splitData(...)
         --local validIdxes = trials[{randomOrder[{{1,numValidTrials}}]:totable()}]
         
         local validIdxes = 
-          randomOrder:gather(1,torch.linspace(1,numValidTrials,numValidTrials):long())
+          randomOrder:gather(1,torch.range(1,numValidTrials):long())
         validIdxes = nonTestIdxes:gather(1,validIdxes)
 
-        local trainIdxes = torch.linspace(numValidTrials+1,numNonTestTrials,numTrainTrials):long()
+        local trainIdxes = torch.range(numValidTrials+1,numNonTestTrials):long()
         trainIdxes = randomOrder:gather(1,trainIdxes)
         trainIdxes = nonTestIdxes:gather(1,trainIdxes)
 

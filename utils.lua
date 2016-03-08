@@ -52,11 +52,11 @@ M.populateArgsBasedOnJobNumber = function(args)
   --subj_idx we want to run for this job
   if args.subj_data.run_single_subj then 
     --we have 33 subjects
-    gridOptions['Z_subj_idx'] = torch.linspace(1,33,33):totable()
+    gridOptions['Z_subj_idx'] = torch.range(1,33):long():totable()
   end
 
   if args.subj_data.do_kfold_split then
-    gridOptions['A_fold_num'] = torch.linspace(1,args.subj_data.num_folds, args.subj_data.num_folds):totable()
+    gridOptions['A_fold_num'] = torch.range(1,args.subj_data.num_folds):long():totable()
   end
 
   gridOptions['Y_rng_seed'] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40}
@@ -262,7 +262,7 @@ M.splitDataBasedOnLabels = function(data, labels)
   for classIdx = 1, numClasses do
     local classIndicator = uniqueIDXs:eq( classIdx )
     local numClassExamples = classIndicator:sum()
-    classIndicator = torch.linspace(1, numExamples, numExamples)[classIndicator]
+    classIndicator = torch.range(1, numExamples):long()[classIndicator]
 
     splitData[{classIdx,{1,numClassExamples},{}}] = 
         M.getDataFromTableOrTensor(data, classIndicator)
@@ -323,7 +323,6 @@ end
 --be saved in a reasonable amount of space on disk.  however, once we load these
 --networks, they error if the fields set to nil are not restated.
 M.ghettoReinflateModel = function(model)
-  if false then
   for m = 1, #model.modules do
     if model.modules[m].output == nil then
       model.modules[m].output = torch.Tensor()
@@ -337,7 +336,6 @@ M.ghettoReinflateModel = function(model)
         model.modules[m].indices = torch.Tensor()
       end
     end
-  end
   end
   --just in case we saved a network in training mode
   model:evaluate()

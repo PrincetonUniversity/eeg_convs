@@ -228,7 +228,7 @@ M.__makeAndSaveHist = function(saveFile, title, distribution, bins)
   require 'gnuplot'
   local pngfig = gnuplot.pngfigure(saveFile)
   gnuplot.raw('set terminal png size 1024,768')
-  gnuplot.plot(torch.linspace(1,bins,bins):long(),distribution,'boxes lw 2')
+  gnuplot.plot(torch.range(1,bins):long(),distribution,'boxes lw 2')
   gnuplot.grid('on')
   gnuplot.title(title)
   gnuplot.plotflush()
@@ -327,7 +327,7 @@ M.getDistributionOfMaxTimepoints = function(fullState)
   assert(torch.type(fullState.network.modules[moduleNumber]) == 'nn.TemporalMaxPooling', "Can only add this hook if we have a temporal max pooling module, which is usually the 3rd module in state.network.  Either you have the wrong network type or the assumption about the max pooling module being the 3rd module is no longer valid.  Either way, check yourself before you wreck yourself.")
   local model = fullState.network
   local maxModule = model.modules[moduleNumber]
-  local numTimePoints = model.modules[moduleNumber-1].output:size(2)
+  local numTimePoints = fullState.data:size(2)
   local numClasses = fullState.data.num_classes
   local trainDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
   local validDistribution = torch.LongTensor(numClasses, numTimePoints):zero()
@@ -458,6 +458,9 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 				'acceptable values are: "train" "test" or "valid"')
 	end
 
+  --if trainValidOrTestData == 'valid' then
+    --_fbd.enter()
+  --end
   --add outputs
 	fullState[confMatrixKeyName]:batchAdd(modelOut, targets)
 

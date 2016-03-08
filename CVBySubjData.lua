@@ -91,7 +91,7 @@ function CVBySubjData:__loadSubjData(filename)
 	--here we're going to make a dataframe for the trial information which
 	--gives us an easy way to query trials by subject number
 	local numTrials = self._all_data:size(1)
-	local trialNums = torch.linspace(1,numTrials, numTrials):totable()
+	local trialNums = torch.range(1,numTrials):long():totable()
 
 	self.dataframe = DataFrame.new({trial = trialNums, 
 			subj_id = self.subjectIDs, class = self._all_targets:totable()})
@@ -169,17 +169,19 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 			total_trial_count = total_trial_count + numTrials
 
 			--now we pick some fixed proportion to be the test set, which is always the same regardless of the rng seed specified elsewhere in the program
-			local indices = torch.linspace(1,numTrials,numTrials):long()
+			local indices = torch.range(1,numTrials):long()
 
 			--pick test
   		local randomOrder = torch.randperm(numTrials):long()
 			local testIdxes = 
-				randomOrder:gather(1,torch.linspace(1,numTestTrials,numTestTrials):long())
-			testIdxes = trials:gather(1,testIdxes)
+				randomOrder:gather(1,torch.range(1,numTestTrials):long())
 
 			--we do it this way so that we can still get different splits between training
 			--and validation data sets for different rng seeds
-			local nonTestIdxes = randomOrder:gather(1,torch.linspace(numTestTrials+1,numTrials, numNonTestTrials):long())
+			local nonTestIdxes = randomOrder:gather(1,torch.range(numTestTrials+1,numTrials):long())
+
+      --actually get the trial numbers
+			testIdxes = trials:gather(1,testIdxes)
 			nonTestIdxes = trials:gather(1,nonTestIdxes)
 			
 			--pick validation/training indices
@@ -187,10 +189,10 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 			--local validIdxes = trials[{randomOrder[{{1,numValidTrials}}]:totable()}]
 			
 			local validIdxes = 
-				randomOrder:gather(1,torch.linspace(1,numValidTrials,numValidTrials):long())
+				randomOrder:gather(1,torch.range(1,numValidTrials):long())
 			validIdxes = nonTestIdxes:gather(1,validIdxes)
 
-			local trainIdxes = torch.linspace(numValidTrials+1,numNonTestTrials,numTrainTrials):long()
+			local trainIdxes = torch.range(numValidTrials+1,numNonTestTrials):long()
 			trainIdxes = randomOrder:gather(1,trainIdxes)
 			trainIdxes = nonTestIdxes:gather(1,trainIdxes)
 
@@ -208,7 +210,8 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 
   --finally restore RNG state
   torch.setRNGState(regularRNG)
-	
+  self:__checkTrainValidTestSplit(allTrain, allValid, allTest)
+
   --finally let's consolidate our data
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
   -- can use more gather (more efficient) for 1D data
@@ -238,6 +241,52 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self._class_counts = class_counts
   self._total_trial_count = total_trial_count
   print(self:__tostring())
+end
+
+function CVBySubjData:__getOverlapOfIndices(one, two)
+  local indices = {}
+  for i = 1, one:numel() do
+    for j = 1, two:numel() do
+      if one[i] == two[j] then
+        table.insert(indices, one[i])
+      end
+    end
+  end
+  return #indices == 0, indices
+end
+
+--train = train indices, valid = valid indices
+function CVBySubjData:__checkTrainValidTestSplit(train, valid, test)
+  local totalNumTrials = self._all_data:size(1)
+  local filledInTrials = torch.LongTensor(totalNumTrials):zero()
+  local totalDuplicates = 0
+  local dupesPerSet = {0,0,0}
+  local function checkTrials(trials, name, set_number)
+    for t = 1, trials:numel() do
+      local trial = trials[t]
+      if filledInTrials[trial] ~= 0 then
+        print('duplicate detected: ', trial, ' in ' .. name, 'already inserted for ', filledInTrials[trial])
+        totalDuplicates = totalDuplicates + 1
+        dupesPerSet[set_number] = dupesPerSet[set_number] + 1
+      else
+          filledInTrials[trial] = set_number
+      end
+    end
+  end
+
+  checkTrials(train, 'train',1)
+  checkTrials(valid, 'valid',2)
+  checkTrials(test, 'test',3)
+  --finally check that they're all non-zero
+  local nonMissedTrials = filledInTrials:nonzero()
+  local totalTrialsMissed = totalNumTrials - nonMissedTrials:numel()
+  print('Missed ', totalTrialsMissed, ' trials')
+  print('Non-unique Duplicated trials', totalDuplicates)
+  print('Duplicated trial counts for train, valid, test:')
+  dupesPerSet[1] = dupesPerSet[1]/train:numel()
+  dupesPerSet[2] = dupesPerSet[2]/valid:numel()
+  dupesPerSet[3] = dupesPerSet[3]/test:numel()
+  print(dupesPerSet)
 end
 
 function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
@@ -313,17 +362,17 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
         --these are the indices of the test fold, everything else will be the indices for training for this fold
         local startIdx = (k-1)*foldSize + 1
         local endIdx = math.min(#trials,startIdx + foldSize - 1)
-        local testIdxs = torch.linspace(startIdx, endIdx, endIdx - startIdx + 1):long()
+        local testIdxs = torch.range(startIdx, endIdx):long()
 
         --training indices are anything before and after the testing indices
         --check "before" indices
         local trainIdxs = torch.LongTensor()
         if k > 1 then
-          trainIdxs = torch.linspace(1,startIdx-1,startIdx-1):long()
+          trainIdxs = torch.range(1,startIdx-1):long()
         end
 
         if endIdx+1 <= #trials then --check "after" indices
-          local afterFoldIndices = torch.linspace(endIdx+1, #trials, #trials-(endIdx)):long()
+          local afterFoldIndices = torch.range(endIdx+1, #trials):long()
 
           if trainIdxs:numel()==0 then 
             trainIdxs = afterFoldIndices
