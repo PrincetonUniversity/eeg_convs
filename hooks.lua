@@ -245,7 +245,7 @@ M.__plotHist = function(fullState, title, distribution, bins, classIdx)
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Hist_' .. title .. tostring(classIdx))
   end
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-  title = title .. ' Max Index Hist: ' .. tostring(classIdx)
+    title = fullState.args.driver_name .. ' ' .. title .. ' Max Index Hist: ' .. tostring(classIdx)
 	M.__makeAndSaveHist(saveFile, title, distribution, bins)
 
 end
@@ -271,7 +271,7 @@ M.plotForRNGSweep = function(fullState)
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
   end
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-	M.__makeAndSavePlot(saveFile, 'Losses', lossPlots)
+	M.__makeAndSavePlot(saveFile, fullState.args.driver_name .. ' Losses', lossPlots)
 	
 	--class acc plots
 	local classAccPlots = {}
@@ -281,7 +281,7 @@ M.plotForRNGSweep = function(fullState)
   end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-	M.__makeAndSavePlot(saveFile, 'Class Acc', classAccPlots)
+	M.__makeAndSavePlot(saveFile, fullState.args.driver_name .. 'Class Acc', classAccPlots)
 
 end
 
@@ -361,7 +361,6 @@ M.subsetConfusionMatrix = function(fullState, ...)
 	  {arg='subsetClassIdx', type ='table', help='list-like table of class indexes to keep',req = true},
 	  {arg='outputTableIndex', type ='number', help='in the case our network output/targets are table, what index into the table do we want',req = false}
 	)
-
 	--this is for the case where we're training a classifier on multiple classes, but 
 	--we just want to consider the accuracy for a subset of those classes
 	local confMatrixKeyName = M.__getConfusionMatrixName(trainValidOrTestData, outputTableIndex) .. '_subset'
@@ -435,7 +434,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 	elseif trainValidOrTestData == 'test' then
 		modelOut = getOutput(fullState.network:forward(fullState.data:getTestData()))
 		targets = getOutput(fullState.data:getTestTargets())
-    local testAvgClassAccKey = 'testAvgClassAcc' ..  outputIndexString .. suffix
+        local testAvgClassAccKey = 'testAvgClassAcc' ..  outputIndexString .. suffix
 		if not fullState[testAvgClassAccKey] then
 			fullState:add(testAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 		end
@@ -471,7 +470,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		fullState[validAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Valid accuracy ' .. (outputTableIndex and outputTableIndex or '' ) ..  ':' .. fullState[confMatrixKeyName].totalValid)
+			print(validAvgClassAccKey .. ' Valid accuracy ' .. (outputTableIndex and outputTableIndex or '' ) ..  ':' .. fullState[confMatrixKeyName].totalValid)
 		end
 	end
 
@@ -482,7 +481,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		fullState[trainAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Training accuracy ' ..  (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
+			print(trainAvgClassAccKey .. ' Training accuracy ' ..  (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
   if trainValidOrTestData == 'test' then
@@ -491,7 +490,7 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 		local testAvgClassAccKey = 'testAvgClassAcc' .. outputIndexString .. suffix
 		fullState[testAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print('Testing accuracy ' .. (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
+			print(testAvgClassAccKey ..' Testing accuracy ' .. (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
 		end
 	end
 end
