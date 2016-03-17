@@ -92,7 +92,7 @@ M.createSumTempConvClassificationNetwork = function(...)
   local args, egInputBatch, numHiddenUnits, numPostConvHiddenLayers, 
       numOutputClasses, dropout_prob, predict_subj, numSubjects, net_args = dok.unpack(
       {...},
-      'createMaxTempConvClassificationNetwork',
+      'createSumTempConvClassificationNetwork',
       'Make a convolution ',
       {arg='egInputBatch',type='Tensor',help='', req=true},
       {arg='numHiddenUnits',type='number',help='num filters in conv and how ' .. 
@@ -209,7 +209,7 @@ M.createShallowMaxTempConvClassificationNetwork = function(...)
   local args, egInputBatch, numHiddenUnits, numPostConvHiddenLayers, 
       numOutputClasses, dropout_prob, predict_subj, numSubjects, net_args = dok.unpack(
       {...},
-      'createMaxTempConvClassificationNetwork',
+      'createShallowMaxTempConvClassificationNetwork',
       'Make a convolution ',
       {arg='egInputBatch',type='Tensor',help='', req=true},
       {arg='numHiddenUnits',type='number',help='num filters in conv and how ' .. 
@@ -350,9 +350,9 @@ M.createMaxChannelConvClassificationNetwork = function(...)
     -- now we have batch x numTimePoints x numHiddens --> batch x numTimePoints * numHiddens
     model:add(nn.ReLU())
     model:add(nn.TemporalMaxPooling(numTimePoints,1))
-    model:add(nn.View(-1):setNumInputDims(2)) 
+    model:add(nn.View(-1):setNumInputDims(2))
 
-    --we only want to ReLU() the output if we have hidden layers, otherwise we 
+    --we only want to ReLU() the output if we have hidden layers, otherwise we
     --want linear output (aka what we already get from the conv output) that will 
     --eventually get sent to a criterion which takes the log soft max using linear 
     --output 
@@ -400,6 +400,9 @@ M.createMaxTempConvClassificationNetwork = function(...)
         req=false, default=-1},
       {arg='net_args',type='table',help='', req=true}
   )
+  local smooth_std = net_args.smooth_std or -1
+  local smooth_width = net_args.smooth_width or 5
+
 	local numTimePoints = egInputBatch:size(2)
 	local numInputUnits = egInputBatch:size(3)
   print(numTimePoints, numInputUnits)
@@ -409,6 +412,14 @@ M.createMaxTempConvClassificationNetwork = function(...)
 	--layer
 	assert(numPostConvHiddenLayers > 0)
 	numOutputClasses = numOutputClasses or 2
+
+  local smoothModule = {}
+  local shouldSmooth = false
+  if smooth_std > 0 then
+    local filter = nn.TemporalSmoothing.filters.makeGaussian(smooth_width, smooth_std, true)
+    smoothModule = nn.TemporalSmoothing(filter, net_args.smooth_step, false, 2)
+    shouldSmooth = true
+  end
 
   if predict_subj then
 		require 'nngraph'
@@ -422,7 +433,12 @@ M.createMaxTempConvClassificationNetwork = function(...)
 		end
     prev = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)(prev)
     prev = nn.ReLU()(prev)
-    prev = nn.TemporalMaxPooling(numTimePoints, 1)(prev)
+    local prevOutputWidth = numTimePoints
+    if shouldSmooth then
+      prev = smoothModule(prev)
+      prevOutputWidth = smoothModule:getTemporalOutputSize(numTimePoints)
+    end
+    prev = nn.TemporalMaxPooling(prevOutputWidth, 1)(prev)
     prev = nn.View(-1):setNumInputDims(2)(prev)
 
     local prevLayerOutputs =  numHiddenUnits --from the convNet
@@ -463,7 +479,14 @@ M.createMaxTempConvClassificationNetwork = function(...)
     -- flattens from batch x 1 x numHiddens --> batch numHiddens
     -- now we have batch x numTimePoints x numHiddens --> batch x numTimePoints * numHiddens
     model:add(nn.ReLU())
-    model:add(nn.TemporalMaxPooling(numTimePoints,1))
+
+    local prevOutputWidth = numTimePoints
+    if shouldSmooth then
+      model:add(smoothModule)
+      prevOutputWidth = smoothModule:getTemporalOutputSize(numTimePoints)
+    end
+
+    model:add(nn.TemporalMaxPooling(prevOutputWidth,1))
     model:add(nn.View(-1):setNumInputDims(2)) 
 
     --we only want to ReLU() the output if we have hidden layers, otherwise we 

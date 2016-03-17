@@ -59,6 +59,16 @@ M.populateArgsBasedOnJobNumber = function(args)
     gridOptions['A_fold_num'] = torch.range(1,args.subj_data.num_folds):long():totable()
   end
 
+  local smooth_stds = torch.range(0.15, 0.35, 0.1):totable()
+  local smooth_widths = torch.range(3,7,2):totable()
+  local smooth_steps = torch.range(1,7,2):totable()
+
+  if args.iterate_smoothing then
+	  gridOptions['B_smooth_std'] = smooth_stds
+	  gridOptions['C_smooth_width'] = smooth_widths
+	  gridOptions['D_smooth_step'] = smooth_steps
+  end
+
   gridOptions['Y_rng_seed'] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40}
 
 	local job_number = os.getenv('SLURM_ARRAY_TASK_ID')
@@ -78,6 +88,14 @@ M.populateArgsBasedOnJobNumber = function(args)
   if args.subj_data.do_kfold_split then
     args.subj_data.fold_num = options['A_fold_num']
   end
+
+  if args.iterate_smoothing then
+    args.network.smooth_std = options['B_smooth_std']
+    args.network.smooth_width = options['C_smooth_width']
+	--make sure we don't step larger than the width
+    args.network.smooth_step = math.min(options['D_smooth_step'],
+	  options['C_smooth_width'])
+  end
 end
 
 M.saveFileNameFromDriversArgs = function(args,base_name)
@@ -90,9 +108,19 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	if not paths.dir(fullPath) then
 		paths.mkdir(fullPath)
 	end
+	local smoothString =  ''
+	if args.network.smooth_std > 0 then
+		if args.network.network_type == 'max_temp_conv' or 
+			args.network.network_type == 'max_channel_conv' then
+			smoothString = 'smooth' .. string.format('%.2f', args.network.smooth_std)
+			.. 'Width' .. tonumber(args.network.smooth_width) ..  'Step' .. 
+		args.network.smooth_step
+	end
+	end
 
 	--build filename
-	local filename = learningRateString .. '_' .. rngSeedString .. '.th7'
+	local filename = smoothString .. learningRateString .. '_' .. 
+	  rngSeedString .. '.th7'
 
 	local fullFilename = paths.concat(fullPath,filename)
 	print(fullFilename)
@@ -349,7 +377,7 @@ M.fileToURI = function(file)
 end
 
 M.makeConfigName = function(args, cmdOptions)
-
+  
   local snake_to_CamelCase = function (s)
     return s:gsub("_%w", function (u) return u:sub(2,2):upper() end)
   end
@@ -358,6 +386,8 @@ M.makeConfigName = function(args, cmdOptions)
   end
 
   local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+
+  
   if cmdOptions.dropout_prob > 0 then
   	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
   end

@@ -32,6 +32,7 @@ dofile 'sgd_log.lua'
 --this should get exported to its own module
 dofile 'DataFrame.lua'
 dofile 'SubsetConfusionMatrix.lua'
+dofile 'TemporalSmoothing.lua'
 
 
 --this is the end of the module definition

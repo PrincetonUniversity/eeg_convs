@@ -127,9 +127,14 @@ local initArgs = function()
   cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
+  cmd:option('-smooth_std', -1, "for max temp conv, should we smooth output of convolution (smooth_std > 0) and if so, what's the std of our gaussian?")
+  cmd:option('-smooth_width', 5, "if we're smoothing (smooth_std > 0), how many non-zero elements do we have in our gaussian filter? must be odd number >= 3")
+  cmd:option('-smooth_step', 1, "how many timepoints do we slide over after performing our convolution")
+  cmd:option('-iterate_smoothing', false, "should we iterate smoothing values")
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
+  assert(opt.smooth_width >= 3, '-smooth_width must be >= 3')
   return opt, cmd
 end
 
@@ -144,6 +149,7 @@ M.generalDriver = function()
   args = {}
   args.rng_seed = '102387'--TODO: rng state is NOT saved right now
   args.float_precision = cmdOptions.float_precision
+  args.iterate_smoothing = cmdOptions.iterate_smoothing
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')
@@ -174,6 +180,7 @@ M.generalDriver = function()
   end
 
   args.subj_data.filename = sleep_eeg.utils.getDataFilenameFromArgs(args)
+  args.network = {}
 
   --let's populate any job specific args we're sweeping over, because we need to get
   --subject_idx before we can populate subj_data
@@ -202,7 +209,6 @@ M.generalDriver = function()
   print('Loaded data from: ' .. sleep_eeg.utils.fileToURI(args.subj_data.filename))
 
   --network args
-  args.network = {}
   local numOut = subj_data.num_classes
   if args.subj_data.predict_subj then
     numOut = subj_data.num_classes + subj_data.num_subjects
@@ -212,6 +218,10 @@ M.generalDriver = function()
   args.network.num_output_classes = subj_data.num_classes
   args.network.dropout_prob = cmdOptions.dropout_prob
   args.network.class_to_subj_loss_ratio = cmdOptions.class_to_subj_loss_ratio
+  args.network.smooth_std = cmdOptions.smooth_std
+  args.network.smooth_width = cmdOptions.smooth_width
+  args.network.smooth_step = cmdOptions.smooth_step
+  args.network.network_type = cmdOptions.network_type
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
   --if period <= 0, set to nil so we never try to execute periodicLogHooks

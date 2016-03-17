@@ -219,7 +219,7 @@ M.__makeAndSavePlot = function(saveFile, title, plots)
   gnuplot.plot(plots)
   gnuplot.raw('set terminal png size 2048,768')
   gnuplot.grid('on')
-  gnuplot.title(title)
+  gnuplot.raw('set title "' .. title .. '"')
   gnuplot.plotflush()
   gnuplot.close(pngfig)
 end
@@ -271,7 +271,9 @@ M.plotForRNGSweep = function(fullState)
     saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(fullState.args.save_file, 'Losses')
   end
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-	M.__makeAndSavePlot(saveFile, fullState.args.driver_name .. ' Losses', lossPlots)
+	local title = fullState.args.driver_name .. '\\nLosses' .. 
+	  ' ' .. fullState.args.save_file
+	M.__makeAndSavePlot(saveFile, title, lossPlots)
 	
 	--class acc plots
 	local classAccPlots = {}
@@ -281,7 +283,9 @@ M.plotForRNGSweep = function(fullState)
   end
 	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
 	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-	M.__makeAndSavePlot(saveFile, fullState.args.driver_name .. 'Class Acc', classAccPlots)
+	title = fullState.args.driver_name .. '\\nClass Acc' .. 
+	  ' ' .. fullState.args.save_file
+	M.__makeAndSavePlot(saveFile, title, classAccPlots)
 
 end
 
@@ -457,9 +461,6 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 				'acceptable values are: "train" "test" or "valid"')
 	end
 
-  --if trainValidOrTestData == 'valid' then
-    --_fbd.enter()
-  --end
   --add outputs
 	fullState[confMatrixKeyName]:batchAdd(modelOut, targets)
 
