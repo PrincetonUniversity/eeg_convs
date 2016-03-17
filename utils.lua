@@ -438,6 +438,9 @@ M.makeConfigName = function(args, cmdOptions)
     name = name .. "_ERP_I"
   end
 
+  --finally append 
+  name = name .. firstToUpper(cmdOptions.hidden_act_fn)
+
   return name
 end
 

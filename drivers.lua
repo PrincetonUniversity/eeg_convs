@@ -131,6 +131,7 @@ local initArgs = function()
   cmd:option('-smooth_width', 5, "if we're smoothing (smooth_std > 0), how many non-zero elements do we have in our gaussian filter? must be odd number >= 3")
   cmd:option('-smooth_step', 1, "how many timepoints do we slide over after performing our convolution")
   cmd:option('-iterate_smoothing', false, "should we iterate smoothing values")
+  cmd:option('-hidden_act_fn', 'relu', "activation function for hidden units; valid values: 'relu', 'sigmoid', 'tanh', 'lrelu' (leaky relu), 'prelu' (parametric relu)")
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
@@ -222,6 +223,7 @@ M.generalDriver = function()
   args.network.smooth_width = cmdOptions.smooth_width
   args.network.smooth_step = cmdOptions.smooth_step
   args.network.network_type = cmdOptions.network_type
+  args.network.hidden_act_fn = cmdOptions.hidden_act_fn
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
   --if period <= 0, set to nil so we never try to execute periodicLogHooks
