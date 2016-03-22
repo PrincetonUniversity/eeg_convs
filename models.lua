@@ -35,7 +35,7 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 			local lastLayer = numTotalFeatures
 			for hiddenLayerIdx = 1, numHiddenLayers-1 do
 				prev = nn.Linear(lastLayer,numHiddenUnits)(prev)
-				prev = hiddenActivationFn(prev)
+				prev = hiddenActivationFn()(prev)
 				lastLayer = numHiddenUnits
 			end
 
@@ -71,7 +71,7 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 			local lastLayer = numTotalFeatures
 			for hiddenLayerIdx = 1, numHiddenLayers-1 do
 				model:add(nn.Linear(lastLayer,numHiddenUnits))
-				model:add(hiddenActivationFn)
+				model:add(hiddenActivationFn())
 				lastLayer = numHiddenUnits
 			end
 
@@ -134,7 +134,7 @@ M.createSumTempConvClassificationNetwork = function(...)
 			prev = input
 		end
     prev = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)(prev)
-    prev = hiddenActivationFn(prev)
+    prev = hiddenActivationFn()(prev)
     --sum, instead of max, across temporal dimension
     prev = nn.Sum(2)(prev) --only works if we have batch data!!!!
     --usually we need a nn:View(-1) to collapse the singleton temporal dimension, but sum gets rid of that
@@ -143,7 +143,7 @@ M.createSumTempConvClassificationNetwork = function(...)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       prev = nn.Linear(prevLayerOutputs,numHiddenUnits)(prev)
-      prev = hiddenActivationFn(prev)
+      prev = hiddenActivationFn()(prev)
       prevLayerOutputs = numHiddenUnits
     end
 
@@ -176,7 +176,7 @@ M.createSumTempConvClassificationNetwork = function(...)
 
     -- flattens from batch x 1 x numHiddens --> batch numHiddens
     -- now we have batch x numTimePoints x numHiddens --> batch x numTimePoints * numHiddens
-    model:add(hiddenActivationFn)
+    model:add(hiddenActivationFn())
     out = model:forward(egInputBatch)
     --sum, instead of max, across temporal dimension
     model:add(nn.Sum(2)) --only works if we have batch data!!!
@@ -192,7 +192,7 @@ M.createSumTempConvClassificationNetwork = function(...)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       model:add(nn.Linear(prevLayerOutputs,numHiddenUnits))
-      model:add(hiddenActivationFn)
+      model:add(hiddenActivationFn())
       prevLayerOutputs = numHiddenUnits
     end
 
@@ -312,7 +312,7 @@ M.createMaxChannelConvClassificationNetwork = function(...)
 		end
     prev = nn.Transpose({2,3})
     prev = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)(prev)
-    prev = hiddenActivationFn(prev)
+    prev = hiddenActivationFn()(prev)
     prev = nn.TemporalMaxPooling(numTimePoints, 1)(prev)
     prev = nn.View(-1):setNumInputDims(2)(prev)
 
@@ -320,7 +320,7 @@ M.createMaxChannelConvClassificationNetwork = function(...)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       prev = nn.Linear(prevLayerOutputs,numHiddenUnits)(prev)
-      prev = hiddenActivationFn(prev)
+      prev = hiddenActivationFn()(prev)
       prevLayerOutputs = numHiddenUnits
     end
 
@@ -354,7 +354,7 @@ M.createMaxChannelConvClassificationNetwork = function(...)
 
     -- flattens from batch x 1 x numHiddens --> batch numHiddens
     -- now we have batch x numTimePoints x numHiddens --> batch x numTimePoints * numHiddens
-    model:add(hiddenActivationFn)
+    model:add(hiddenActivationFn())
     model:add(nn.TemporalMaxPooling(numTimePoints,1))
     model:add(nn.View(-1):setNumInputDims(2))
 
@@ -368,7 +368,7 @@ M.createMaxChannelConvClassificationNetwork = function(...)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       model:add(nn.Linear(prevLayerOutputs,numHiddenUnits))
-      model:add(hiddenActivationFn)
+      model:add(hiddenActivationFn())
       prevLayerOutputs = numHiddenUnits
     end
 
@@ -567,13 +567,13 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
 		end
     prev = nn.TemporalConvolution(numInputUnits, numHiddenUnits, 1, 1)(prev)
     prev = nn.View(-1):setNumInputDims(2)(prev)
-    prev = hiddenActivationFn(prev)
+    prev = hiddenActivationFn()(prev)
 
     local prevLayerOutputs =  numTimePoints * numHiddenUnits --from the convNet
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       prev = nn.Linear(prevLayerOutputs,numHiddenUnits)(prev)
-      prev = hiddenActivationFn(prev)
+      prev = hiddenActivationFn()(prev)
       prevLayerOutputs = numHiddenUnits
     end
 
@@ -607,7 +607,7 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
     -- flattens from batch x 1 x numHiddens --> batch numHiddens
     -- now we have batch x numTimePoints x numHiddens --> batch x numTimePoints * numHiddens
     model:add(nn.View(-1):setNumInputDims(2)) 
-    model:add(hiddenActivationFn)
+    model:add(hiddenActivationFn())
 
     --we only want to ReLU() the output if we have hidden layers, otherwise we 
     --want linear output (aka what we already get from the conv output) that will 
@@ -619,7 +619,7 @@ M.createNoMaxTempConvClassificationNetwork = function(...)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       model:add(nn.Linear(prevLayerOutputs,numHiddenUnits))
-      model:add(hiddenActivationFn)
+      model:add(hiddenActivationFn())
       prevLayerOutputs = numHiddenUnits
     end
 
