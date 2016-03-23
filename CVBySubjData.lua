@@ -4,6 +4,7 @@
     -- implement InputData interface
 --]]
 
+DEBUG_ALEXNET_OUTPUTS = false
 local CVBySubjData = torch.class('sleep_eeg.CVBySubjData', 'sleep_eeg.CVData')
 
 -- we hardcode this because we want to never peek at the test data, but if we 
@@ -72,6 +73,72 @@ function CVBySubjData:__loadSubjData(filename)
 	self._all_targets = torch.squeeze(targets) --remove singleton dimension
 	self.dimensions = loadedData['dimensions']
   self.classnames = loadedData['conds']
+
+    if self.transform_with_convnet or true then
+	  require 'loadcaffe'
+      local net = loadcaffe.load('./caffe_models/bvlc_alexnet/deploy.prototxt', './caffe_models/bvlc_alexnet/bvlc_alexnet.caffemodel','cudnn')
+
+	  --remove fully-connected layers for alexnet, should make this more general
+	  local num_modules = #net.modules
+	  for extras = num_modules, 16, -1 do
+		  net:remove(extras)
+	  end
+
+	  local orig_size = self._all_data:size()
+	  local num_trials = self._all_data:size(1)
+	  local new_size = {}
+	  local new_size_count = 0
+	  local repeat_size = {}
+	  for i = 1, orig_size:size() do
+		if i == 2 then
+	    	new_size[2] = 1
+			repeat_size[2] = 3
+	    	new_size[3] = orig_size[i]
+			repeat_size[3] = 1
+		else
+	    	new_size[#new_size+1] = orig_size[i]
+			repeat_size[#repeat_size+1] = 1
+		end
+	  end
+	  self._all_data = torch.reshape(self._all_data,unpack(new_size)):repeatTensor(unpack(repeat_size))
+    self._all_data[{{},2,{},{}}]:sin() --because of SpatialCrossMapLRN
+    self._all_data[{{},3,{},{}}]:pow(2) --because of SpatialCrossMapLRN
+
+	  --we should technically mean-center the data before running through alexnet
+	  --but that would require splitting it into a training set first, which is annoying for right now
+
+	  --now let's convert each trial
+	  local one_trial = {}
+	  local converted_data
+	  for trial_idx = 1, num_trials do
+		  --require 'gnuplot'
+		  one_trial = self._all_data[trial_idx]:cuda()
+		  --check for nan data
+		  if one_trial:ne(one_trial):sum() > 0 then
+			  print('trial ' .. one_trial .. ' has nan data')
+		  end
+		  if not torch.isTensor(converted_data) then
+		  	local out = net:forward(one_trial):type(torch.getdefaulttensortype())
+			converted_data = torch.Tensor():resize(num_trials, unpack(out:size():totable())):zero()
+	        converted_data[trial_idx] = out
+		  else
+            converted_data[trial_idx] = net:forward(one_trial):type(torch.getdefaulttensortype())
+		  end
+		  if converted_data[trial_idx]:ne(converted_data[trial_idx]):sum() > 0 then
+			  print('output from conv net for trial:  ' .. one_trial .. ' has nan data')
+		  end
+	  end
+
+	  self._all_data = converted_data
+	  --finally replace our data --make sure no NaNs
+	  assert(self._all_data:ne(self._all_data):sum() == 0, 'error')
+
+    if DEBUG_ALEXNET_OUTPUTS then
+      require 'gnuplot'
+      gnuplot.imagesc(self._all_data)
+    end
+
+	end
 
     --we're going to convert subject_ids into indices so that we can use those 
 	--as labels

@@ -28,12 +28,13 @@ test_nilXOR()
 M.normalizeData = function(data,mean_, std_)
   local numExamples = data:size(1)
   local std = std_ or data:std(1)
+  std[std:eq(0)] = 1 --needed for alexnet b/c sometimes get zero std outputs
   local mean = mean_ or data:mean(1)
 
   -- actually normalize here
   for i = 1, numExamples do
      data[i]:add(-mean)
-     data[i]:cdiv(std)
+	 data[i]:cdiv(std)
   end
 
   return mean, std
@@ -489,6 +490,17 @@ M.getDataFilenameFromArgs = function(args)
   end
 
   return fileName
+end
+
+M.insertIntoTable = function(orig_table, new_value, position)
+	local new_table = {}
+	for i = 1, #orig_table do
+		if i == position then
+			new_table[position] = new_value
+		else
+			new_table[#new_size+1] = orig_table[i]
+		end
+	end
 end
 
 return M

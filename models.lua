@@ -12,7 +12,7 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 		numSubjects, net_args)
 
 	local numTimePoints = egInputBatch:size(2)
-	local numInputUnits = egInputBatch:size(3)
+	local numInputUnits = egInputBatch:nDimension() > 2 and egInputBatch:size(3) or 1 --this accomodates for the fact that sometimes our input is 2d
 	local numTotalFeatures = numTimePoints * numInputUnits
 	assert(egInputBatch and numHiddenUnits and numHiddenLayers and numOutputClasses)
 	assert(numHiddenLayers >= 0)
@@ -28,7 +28,9 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 		else
 			prev = input
 		end
-		prev = nn.View(-1):setNumInputDims(2)(prev)
+        if egInputBatch:nDimension() > 2 then
+		  prev = nn.View(-1):setNumInputDims(2)(prev)
+	    end
 		local toClasses = {}
 		local toSubjects = {}
 		if numHiddenLayers > 1 then
@@ -65,7 +67,9 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 		if dropout_prob > 0 then
 			model:add(nn.Dropout(dropout_prob))
 		end
-		model:add(nn.View(-1):setNumInputDims(2)) --flatten
+        if egInputBatch:nDimension() > 2 then
+		  model:add(nn.View(-1):setNumInputDims(2)) --flatten
+	    end
 
 		if numHiddenLayers > 1 then
 			local lastLayer = numTotalFeatures
@@ -74,7 +78,6 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 				model:add(hiddenActivationFn())
 				lastLayer = numHiddenUnits
 			end
-
 			model:add(nn.Linear(numHiddenUnits,numOutputClasses))
 		else
 			model:add(nn.Linear(numTotalFeatures,numOutputClasses))
