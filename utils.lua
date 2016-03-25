@@ -441,6 +441,10 @@ M.makeConfigName = function(args, cmdOptions)
   --finally append 
   name = name .. firstToUpper(cmdOptions.hidden_act_fn)
 
+  if cmdOptions.mini_batch_size ~= -1 then
+    name = name .. 'Mini' .. cmdOptions.mini_batch_size
+  end
+
   return name
 end
 
@@ -489,6 +493,32 @@ M.getDataFilenameFromArgs = function(args)
   end
 
   return fileName
+end
+
+M.getMiniBatchTrials = function(shuffledExamples, miniBatchIdx, miniBatchSize)
+  local startIdx = (miniBatchIdx-1)*miniBatchSize + 1
+  local endIdx = math.min(startIdx + miniBatchSize -1, shuffledExamples:numel())
+  return shuffledExamples[{{startIdx,endIdx}}]
+end
+
+M.getNumMiniBatches = function(numExamples, miniBatchSize)
+  if miniBatchSize == -1 then
+    return 1
+  else
+    return math.ceil(numExamples/miniBatchSize)
+  end
+end
+
+M.indexIntoTensorOrTableOfTensors = function(source, dim, idxs)
+  if torch.isTensor(source) then
+    return source:index(dim, idxs)
+  end
+  --otherwise we have a table of tensors
+ local result = {}
+ for k,v in pairs(source) do
+   result[k] = v:index(dim, idxs)
+ end
+ return result
 end
 
 return M

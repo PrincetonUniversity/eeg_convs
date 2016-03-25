@@ -408,6 +408,25 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
     end
   end
 
+  local getData = function(trainValidOrTestData)
+    if trainValidOrTestData == 'train' then
+      return fullState.data:getTrainData()
+    elseif trainValidOrTestData == 'test' then
+      return fullState.data:getTestData()
+    elseif trainValidOrTestData == 'valid' then
+      return fullState.data:getValidData()
+    end
+  end
+  local getTargets = function(trainValidOrTestData)
+    if trainValidOrTestData == 'train' then
+      return fullState.data:getTrainTargets()
+    elseif trainValidOrTestData == 'test' then
+      return fullState.data:getTestTargets()
+    elseif trainValidOrTestData == 'valid' then
+      return fullState.data:getValidTargets()
+    end
+  end
+
   --where we list fields to plot
   if not fullState.plotting then
     fullState.plotting = {}
@@ -423,77 +442,39 @@ M.__updateConfusionMatrix = function(fullState, trainValidOrTestData, confMatrix
 	--here we actually look into fullState and get it's output, we're breaking generality
 	--here just to get this done
 	fullState[confMatrixKeyName]:zero()
-	local modelOut, targets
-	if trainValidOrTestData == 'train' then
-		modelOut = getOutput(fullState.network:forward(fullState.data:getTrainData()))
-		targets = getOutput(fullState.data:getTrainTargets())
-		local trainAvgClassAccKey = 'trainAvgClassAcc' .. outputIndexString .. suffix
-		if not fullState[trainAvgClassAccKey] then
-			fullState:add(trainAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
-		end
-    if not fullState.plotting.accuracy[confMatrixKeyName] then
-      fullState.plotting.accuracy[confMatrixKeyName] = trainAvgClassAccKey
-    end
 
-	elseif trainValidOrTestData == 'test' then
-		modelOut = getOutput(fullState.network:forward(fullState.data:getTestData()))
-		targets = getOutput(fullState.data:getTestTargets())
-        local testAvgClassAccKey = 'testAvgClassAcc' ..  outputIndexString .. suffix
-		if not fullState[testAvgClassAccKey] then
-			fullState:add(testAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
-		end
+  local classAccKey = trainValidOrTestData .. 'AvgClassAcc' .. outputIndexString .. suffix
+  if not fullState[classAccKey] then
+    fullState:add(classAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
+  end
+  if not fullState.plotting.accuracy[confMatrixKeyName] then
+    fullState.plotting.accuracy[confMatrixKeyName] = classAccKey
+  end
 
-    if not fullState.plotting.accuracy[confMatrixKeyName] then
-      fullState.plotting.accuracy[confMatrixKeyName] = testAvgClassAccKey
-    end
-	elseif trainValidOrTestData == 'valid' then
-		modelOut = getOutput(fullState.network:forward(fullState.data:getValidData()))
-		targets = getOutput(fullState.data:getValidTargets())
-		local validAvgClassAccKey = 'validAvgClassAcc' .. outputIndexString .. suffix
-		if not fullState[validAvgClassAccKey] then
-			fullState:add(validAvgClassAccKey, torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
-		end
-    if not fullState.plotting.accuracy[confMatrixKeyName] then
-      fullState.plotting.accuracy[confMatrixKeyName] = validAvgClassAccKey
-    end
-	else
-		error('Invalid value passed as for "trainValidOrTestData"' ..
-				'acceptable values are: "train" "test" or "valid"')
-	end
+  local data = getData(trainValidOrTestData)
+  local targets = getTargets(trainValidOrTestData)
+  local numExamples = data:size(1)
+  local shuffle = torch.randperm(numExamples):long()
+  local numMiniBatches = sleep_eeg.utils.getNumMiniBatches(numExamples, fullState.args.miniBatchSize)
 
-  --add outputs
-	fullState[confMatrixKeyName]:batchAdd(modelOut, targets)
+  for miniBatchIdx = 1, numMiniBatches do
 
-	if trainValidOrTestData == 'valid' then
-		fullState[confMatrixKeyName]:updateValids() --update confMatrix
+    local miniBatchTrials = sleep_eeg.utils.getMiniBatchTrials(shuffle, miniBatchIdx, fullState.args.miniBatchSize)
 
-		local validAvgClassAccKey = 'validAvgClassAcc' .. outputIndexString .. suffix
-		fullState[validAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+    local modelOut = getOutput(fullState.network:forward(data:index(1,miniBatchTrials)))
+    local batch_targets = getOutput(sleep_eeg.utils.indexIntoTensorOrTableOfTensors(targets,1,miniBatchTrials) )
 
-		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print(validAvgClassAccKey .. ' Valid accuracy ' .. (outputTableIndex and outputTableIndex or '' ) ..  ':' .. fullState[confMatrixKeyName].totalValid)
-		end
-	end
+    --add outputs to conf matrix
+    fullState[confMatrixKeyName]:batchAdd(modelOut, batch_targets)
 
-	if trainValidOrTestData == 'train' then
-		fullState[confMatrixKeyName]:updateValids() --update confMatrix
+  end
+  fullState[confMatrixKeyName]:updateValids() --update confMatrix
+  fullState[classAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
 
-    local trainAvgClassAccKey = 'trainAvgClassAcc' .. outputIndexString .. suffix
-		fullState[trainAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
+  if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
+    print(classAccKey .. trainValidOrTestData .. ' accuracy ' .. (outputTableIndex and outputTableIndex or '' ) ..  ':' .. fullState[confMatrixKeyName].totalValid)
+  end
 
-		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print(trainAvgClassAccKey .. ' Training accuracy ' ..  (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[trainAvgClassAccKey][fullState.trainingIteration])
-		end
-	end
-  if trainValidOrTestData == 'test' then
-		fullState[confMatrixKeyName]:updateValids() --update confMatrix
-
-		local testAvgClassAccKey = 'testAvgClassAcc' .. outputIndexString .. suffix
-		fullState[testAvgClassAccKey][fullState.trainingIteration] = fullState[confMatrixKeyName].totalValid
-		if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
-			print(testAvgClassAccKey ..' Testing accuracy ' .. (outputTableIndex and outputTableIndex or '') .. ':' .. fullState[testAvgClassAccKey][fullState.trainingIteration])
-		end
-	end
 end
 
 

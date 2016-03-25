@@ -132,6 +132,7 @@ local initArgs = function()
   cmd:option('-smooth_step', 1, "how many timepoints do we slide over after performing our convolution")
   cmd:option('-iterate_smoothing', false, "should we iterate smoothing values")
   cmd:option('-hidden_act_fn', 'relu', "activation function for hidden units; valid values: 'relu', 'sigmoid', 'tanh', 'lrelu' (leaky relu), 'prelu' (parametric relu)")
+  cmd:option('-mini_batch_size', -1, 'max number of exaples per minibatch (-1 uses a single batch)')
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
@@ -151,6 +152,7 @@ M.generalDriver = function()
   args.rng_seed = '102387'--TODO: rng state is NOT saved right now
   args.float_precision = cmdOptions.float_precision
   args.iterate_smoothing = cmdOptions.iterate_smoothing
+  args.miniBatchSize = cmdOptions.mini_batch_size
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')
