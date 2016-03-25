@@ -49,6 +49,11 @@ M.performTrainIteration = function(fullState)
   local batchTrainInputs
   for miniBatchIdx = 1, numMiniBatches do
 
+    local start2
+    if fullState.trainingIteration == 1 then
+      start2= torch.tic()
+    end
+
     local miniBatchTrials = sleep_eeg.utils.getMiniBatchTrials(shuffle, miniBatchIdx, fullState.args.miniBatchSize)
     --when we accum loss/accuracy over each minibatch, we want to avg according the size of the minibatch
     local miniBatchWeight = miniBatchTrials:numel()/numExamples 
@@ -68,7 +73,9 @@ M.performTrainIteration = function(fullState)
       fullState.params, fullState.optimSettings)
     
     --todo: here we should calculate any classification errors before we clear out the outputs for the next minibatch so that we can save computation
-    print('minibatch #: ', miniBatchIdx)
+    if fullState.trainingIteration == 1 then
+      print('minibatch #: ', miniBatchIdx, ' took ', torch.toc(start2), ' seconds')
+    end
   end
   print('One iteration through dataset took: ', torch.toc(start), 'seconds')
 

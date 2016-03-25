@@ -2,6 +2,10 @@ require 'nn'
 
 local M = {}
 
+M.getConvOutputWidth = function(inWidth, kernelWidth, stride)
+    print('Input: ', inWidth, 'kW: ', kernelWidth, 'stride: ', stride, 'out:', math.floor((inWidth - kernelWidth)/stride) + 1)
+    return math.floor((inWidth - kernelWidth)/stride) + 1
+end
 --supported activationFunctions for hidden units and what we call them
 M.activationFns = {['relu'] = nn.ReLU, ['tanh'] = nn.Tanh, ['sigmoid'] = nn.Sigmoid, 
   ['prelu'] = nn.PReLU, ['lrelu'] = nn.LeakyReLU}
@@ -445,10 +449,19 @@ M.createMaxTempConvClassificationNetwork = function(...)
       prev = smoothModule(prev)
       prevOutputWidth = smoothModule:getTemporalOutputSize(numTimePoints)
     end
-    prev = nn.TemporalMaxPooling(prevOutputWidth, 1)(prev)
+
+    local maxPoolWidth = prevOutputWidth
+    if net_args.max_pool_outs then
+      maxPoolWidth = math.floor(prevOutputWidth / net_args.max_pool_outs)
+    end
+
+    --prev = nn.TemporalMaxPooling(prevOutputWidth, 1)(prev)
+    prev = nn.TemporalMaxPooling(maxPoolWidth, maxPoolWidth)(prev)
     prev = nn.View(-1):setNumInputDims(2)(prev)
 
-    local prevLayerOutputs =  numHiddenUnits --from the convNet
+    prevOutputWidth = M.getConvOutputWidth(prevOutputWidth,maxPoolWidth, maxPoolWidth)
+
+    local prevLayerOutputs =  numHiddenUnits * prevOutputWidth --from the convNet
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       prev = nn.Linear(prevLayerOutputs,numHiddenUnits)(prev)
@@ -493,8 +506,15 @@ M.createMaxTempConvClassificationNetwork = function(...)
       prevOutputWidth = smoothModule:getTemporalOutputSize(numTimePoints)
     end
 
-    model:add(nn.TemporalMaxPooling(prevOutputWidth,1))
+    local maxPoolWidth = prevOutputWidth
+    if net_args.max_pool_outs then
+      maxPoolWidth = math.floor(prevOutputWidth / net_args.max_pool_outs)
+    end
+
+    model:add(nn.TemporalMaxPooling(maxPoolWidth,maxPoolWidth))
     model:add(nn.View(-1):setNumInputDims(2)) 
+
+    prevOutputWidth = M.getConvOutputWidth(prevOutputWidth,maxPoolWidth, maxPoolWidth)
 
     --we only want to ReLU() the output if we have hidden layers, otherwise we 
     --want linear output (aka what we already get from the conv output) that will 
@@ -502,7 +522,7 @@ M.createMaxTempConvClassificationNetwork = function(...)
     --output 
     --TODO: Might want to reconsider this behavior, why not have 
     --conv --> pool --> ReLU --> sigmoid?
-    local prevLayerOutputs = numHiddenUnits --from the convNet
+    local prevLayerOutputs = prevOutputWidth * numHiddenUnits --from the convNet
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
       model:add(nn.Linear(prevLayerOutputs,numHiddenUnits))

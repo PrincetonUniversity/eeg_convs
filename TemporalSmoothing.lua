@@ -67,7 +67,7 @@ end
 --isn't the same as the output
 function TS:getTemporalOutputSize(input_size)
   assert(self._filter_size and self._slide_size)
-  return (input_size - self._filter_size)/self._slide_size + 1
+  return math.floor((input_size - self._filter_size)/self._slide_size) + 1
 end
 
 function TS:updateOutput(input)

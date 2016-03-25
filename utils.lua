@@ -387,7 +387,12 @@ M.makeConfigName = function(args, cmdOptions)
 
   local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
 
-  
+  if cmdOptions.max_pool_outs ~= 1 and string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') then
+    --lazy way of dealing with the fact that sometimes we have "Max", and sometimes we have "max"
+    name = name:gsub('Max', function (s) return s .. tostring(cmdOptions.max_pool_outs) end)
+    name = name:gsub('max', function (s) return s .. tostring(cmdOptions.max_pool_outs) end)
+  end
+
   if cmdOptions.dropout_prob > 0 then
   	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
   end

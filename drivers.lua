@@ -133,6 +133,7 @@ local initArgs = function()
   cmd:option('-iterate_smoothing', false, "should we iterate smoothing values")
   cmd:option('-hidden_act_fn', 'relu', "activation function for hidden units; valid values: 'relu', 'sigmoid', 'tanh', 'lrelu' (leaky relu), 'prelu' (parametric relu)")
   cmd:option('-mini_batch_size', -1, 'max number of exaples per minibatch (-1 uses a single batch)')
+  cmd:option('-max_pool_outs', 1, 'how many outputs we get from our max pool output')
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
@@ -226,6 +227,8 @@ M.generalDriver = function()
   args.network.smooth_step = cmdOptions.smooth_step
   args.network.network_type = cmdOptions.network_type
   args.network.hidden_act_fn = cmdOptions.hidden_act_fn
+  args.network.max_pool_outs = cmdOptions.max_pool_outs
+
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
   --if period <= 0, set to nil so we never try to execute periodicLogHooks
