@@ -105,6 +105,20 @@ function CVBySubjData:__loadSubjData(filename)
 
 end
 
+function CVBySubjData:cuda()
+	require 'cutorch'
+	require 'cunn'
+	self._train_data  = self._train_data:cuda()
+	self._valid_data = self._valid_data:cuda()
+	self._test_data = self._test_data:cuda()
+end
+
+function CVBySubjData:swapTemporalAndChannelDims()
+	self._train_data  = self._train_data:transpose(2,3)
+	self._valid_data = self._valid_data:transpose(2,3)
+	self._test_data = self._test_data:transpose(2,3)
+end
+
 --make training, validation and test set by looking at each
 --unique combination of subj_id,class and grabbing X% for train,
 --Y% for validation, and Z% for testing

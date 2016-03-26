@@ -60,10 +60,14 @@ M.performTrainIteration = function(fullState)
 
     --set gradient to zero
     fullState.gradParams:zero()
-    batchTrainInputs = trainInputs:index(1,miniBatchTrials)
+	if fullState.args.network.cuda then
+		batchTrainInputs = trainInputs:index(1,miniBatchTrials):cuda()
+	else
+		batchTrainInputs = trainInputs:index(1,miniBatchTrials)
+	end
     fullState.trainModelOut = fullState.network:forward(batchTrainInputs)
 
-    fullState.trainSetLoss[fullState.trainingIteration] = fullState.trainSetLoss[fullState.trainingIteration] + fullState.criterion:forward(fullState.trainModelOut, trainTargets) * miniBatchWeight
+    fullState.trainSetLoss[fullState.trainingIteration] = fullState.trainSetLoss[fullState.trainingIteration] + fullState.criterion:forward(fullState.trainModelOut, sleep_eeg.utils.indexIntoTensorOrTableOfTensors(trainTargets,1,miniBatchTrials)) * miniBatchWeight
     fullState.trainSetClassAcc = 1 --evaluation.classification(trainModelOut, trainTargets)
 
     --actually update our network
@@ -77,7 +81,9 @@ M.performTrainIteration = function(fullState)
       print('minibatch #: ', miniBatchIdx, ' took ', torch.toc(start2), ' seconds')
     end
   end
-  print('One iteration through dataset took: ', torch.toc(start), 'seconds')
+  if fullState.trainingIteration == 1 then
+    print('One iteration through dataset took: ', torch.toc(start), 'seconds')
+  end
 
 	if fullState.trainingIteration % 100 == 0 then
 		print('_________________________________')

@@ -389,8 +389,13 @@ M.makeConfigName = function(args, cmdOptions)
 
   if cmdOptions.max_pool_outs ~= 1 and string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') then
     --lazy way of dealing with the fact that sometimes we have "Max", and sometimes we have "max"
-    name = name:gsub('Max', function (s) return s .. tostring(cmdOptions.max_pool_outs) end)
-    name = name:gsub('max', function (s) return s .. tostring(cmdOptions.max_pool_outs) end)
+    name = name:gsub('Max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
+    name = name:gsub('max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
+  end
+
+  if string.match(cmdOptions.network_type, 'max') then
+	  name = name .. 'Kw' .. tostring(cmdOptions.kernel_width) .. 'dW' ..
+	    tostring(cmdOptions.stride) .. cmdOptions.conv_layers_kws
   end
 
   if cmdOptions.dropout_prob > 0 then
@@ -448,6 +453,10 @@ M.makeConfigName = function(args, cmdOptions)
 
   if cmdOptions.mini_batch_size ~= -1 then
     name = name .. 'Mini' .. cmdOptions.mini_batch_size
+  end
+
+  if cmdOptions.cuda then
+	  name = name .. 'Cuda'
   end
 
   return name

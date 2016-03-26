@@ -78,9 +78,9 @@ function TS:updateOutput(input)
     local output_size = self:getTemporalOutputSize(input:size(2))
     local num_layers = self._num_input_dims == 2 and input:size(3)  or 1
     if self._num_input_dims == 2 then
-      self.output = torch.Tensor(batch_size,output_size,num_layers):zero()
+      self.output = torch.Tensor():typeAs(input):resize(batch_size,output_size,num_layers):zero()
     else
-      self.output = torch.Tensor(batch_size,output_size):zero()
+      self.output = torch.Tensor():typeAs(input):resize(batch_size,output_size):zero()
     end
     local indexDataFn = {}
 	if self._num_input_dims == 2 then
@@ -110,9 +110,9 @@ function TS:updateOutput(input)
 
     local num_layers = self._num_input_dims == 2 and input:size(2) or 1
     if self._num_input_dims == 2 then
-      self.output = torch.Tensor(output_size,num_layers):zero()
+      self.output = torch.Tensor():typeAs(input):resize(output_size,num_layers):zero()
     else
-      self.output = torch.Tensor(output_size):zero()
+      self.output = torch.Tensor():typeAs(input):resize(output_size):zero()
     end
     for i = 1, output_size do
       for l = 1, num_layers do 
@@ -148,12 +148,12 @@ function TS:updateGradInput(input, gradOutput)
     local batch_size = input:size(1)
     local output_size = self:getTemporalOutputSize(input:size(2))
     local num_layers = self._num_input_dims == 2 and input:size(3) or 1
-    df_dx = torch.Tensor(output_size, input_size):zero()
+    df_dx = torch.Tensor():typeAs(input):resize(output_size, input_size):zero()
 
       if self._num_input_dims == 2 then
-        self.gradInput = torch.Tensor(batch_size, input_size, num_layers):zero()
+        self.gradInput = torch.Tensor():typeAs(input):resize(batch_size, input_size, num_layers):zero()
       else
-        self.gradInput = torch.Tensor(batch_size, input_size):zero()
+        self.gradInput = torch.Tensor():typeAs(input):resize(batch_size, input_size):zero()
       end
 
     --df_dx = the filter weight that x gets multiplied by to produce the out-th output in f,
@@ -190,7 +190,7 @@ function TS:updateGradInput(input, gradOutput)
     local output_size = self:getTemporalOutputSize(input_size)
     local num_layers = self._num_input_dims == 2 and input:size(2) or 1
 
-    local df_dx = torch.Tensor(input_size, output_size):zero()
+    local df_dx = torch.Tensor():typeAs(input):resize(input_size, output_size):zero()
 
     for out_idx = 1, output_size do
       for filter_idx = 1, self._filter_size do
@@ -200,9 +200,9 @@ function TS:updateGradInput(input, gradOutput)
     end
 
     if self._num_input_dims == 2 then
-      self.gradInput = torch.Tensor(input_size, num_layers):zero()
+      self.gradInput = torch.Tensor():typeAs(input):resize(input_size, num_layers):zero()
     else
-      self.gradInput = torch.Tensor(input_size):zero()
+      self.gradInput = torch.Tensor():typeAs(input):resize(input_size):zero()
     end
 
 	--if we have num_input_dims > 1 then we just do a matrix matrix multiplication

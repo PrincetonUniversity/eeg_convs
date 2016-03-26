@@ -68,7 +68,7 @@ M.train = function(fullState)
 
       --garbage collect every 100 training iterations
       if fullState.trainingIteration % 10 == 0 then
-        print('10 iterations took: ' .. torch.toc(start) .. 'secs')
+        print('10 iterations took: ', torch.toc(start), 'secs')
         start = torch.tic()
         collectgarbage()
       end
@@ -101,6 +101,7 @@ local initArgs = function()
   cmd:text('Options')
   cmd:option('-simulated', -1, '-1 = no sim data, 1 = basic, 2 = no signal, 3 = basic + noise (not implemented yet)')
   cmd:option('-percent_train', 65, 'percent of data to use for training')
+  cmd:option('-cuda', false, 'use cuda')
   cmd:option('-percent_valid', 20, 'percent of data to use for validation')
   cmd:option('-loso',false, 'leave-one-subject-out validation? NOTE: currently not implemented')
   cmd:option('-run_single_subj',false, 'run within subject analysis')
@@ -110,7 +111,7 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected", and "sum_temp_conv", "shallow_max_temp_conv"')
+  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv"')
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
   cmd:option('-num_hidden_layers', 1, 'Number of weights between layers, always at least 1 (input --> output), greater than 1 creates hidden layers')
@@ -132,12 +133,18 @@ local initArgs = function()
   cmd:option('-smooth_step', 1, "how many timepoints do we slide over after performing our convolution")
   cmd:option('-iterate_smoothing', false, "should we iterate smoothing values")
   cmd:option('-hidden_act_fn', 'relu', "activation function for hidden units; valid values: 'relu', 'sigmoid', 'tanh', 'lrelu' (leaky relu), 'prelu' (parametric relu)")
+  cmd:option('-show_network', false, 'whether or not to save network graph to disk for predict_subj networks; doesnt work on della')
   cmd:option('-mini_batch_size', -1, 'max number of exaples per minibatch (-1 uses a single batch)')
-  cmd:option('-max_pool_outs', 1, 'how many outputs we get from our max pool output')
+  cmd:option('-kernel_width', 1, 'convolution kernel width for deep_max_temp_conv')
+  cmd:option('-stride', 1, 'conv stride multiple of kernel_width')
+  cmd:option('-max_pool_width_prcnt', 1, 'percent of input to pool over')
+  cmd:option('-conv_layers_kws','','comma-separated list of conv_layers kws size reduction i.e. "" gives just one conv layer with kernel_width = $[-kernel_width], "0" will give two conv layers with same kernel, "2" will give two spatial convs, with the second convolution layer having a kernel width = max($[-kernel_width]-2,1), "2,1" would give the same, except add a third layer with kernel_width = max($[kernel_width]-2-1,1)')
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
   assert(opt.smooth_width >= 3, '-smooth_width must be >= 3')
+  assert(opt.max_pool_width_prcnt >= 0 and opt.max_pool_width_prcnt <= 1,
+    'max pool width prcnt must be b/w 0 and 1')
   return opt, cmd
 end
 
@@ -217,6 +224,7 @@ M.generalDriver = function()
   if args.subj_data.predict_subj then
     numOut = subj_data.num_classes + subj_data.num_subjects
   end
+  args.network.cuda = cmdOptions.cuda
   args.network.numHiddenUnits = cmdOptions.num_hidden_mult * numOut
   args.network.numHiddenLayers = cmdOptions.num_hidden_layers
   args.network.num_output_classes = subj_data.num_classes
@@ -227,7 +235,11 @@ M.generalDriver = function()
   args.network.smooth_step = cmdOptions.smooth_step
   args.network.network_type = cmdOptions.network_type
   args.network.hidden_act_fn = cmdOptions.hidden_act_fn
-  args.network.max_pool_outs = cmdOptions.max_pool_outs
+  args.network.kernel_width = cmdOptions.kernel_width
+  args.network.stride = cmdOptions.stride
+  args.network.max_pool_width_prcnt = cmdOptions.max_pool_width_prcnt
+  args.network.conv_layers_kws = cmdOptions.conv_layers_kws
+  args.network.show_network = cmdOptions.show_network
 
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
@@ -360,6 +372,9 @@ M.generalDriver = function()
   args.save_file = utils.saveFileNameFromDriversArgs(args,args.driver_name)
   --end args definition 
   ------------------------------------------------------------------------
+  if args.network.cuda then
+	  subj_data:cuda()
+  end
 
   --this will get reload state if args.save_file already exists
   --otherwise, just keeps saving there
@@ -380,40 +395,29 @@ M.generalDriver = function()
     state:add('data',subj_data,false)
   end
 
+  -- if we want, we can also do convolutions across channels instead of temporally,
+  -- if that's the case, let's transpose our data and just recycle the maxTempConv code
+  if cmdOptions.network_type == 'max_channel_conv' then
+	  subj_data:swapTemporalAndChannelDims()
+  end
+
   --create our network and criterion  (network type determines criterion type)
   if not state.network and not state.criterion then
     print('making network started...')
     print(args.network)
     local network, criterion = {},{}
-    if cmdOptions.network_type == 'max_temp_conv' then 
+    if cmdOptions.network_type == 'deep_max_temp_conv' or cmdOptions.network_type == 'max_channel_conv' then 
+      network, criterion = sleep_eeg.models.createDeepMaxTempConvClassificationNetwork(
+        state.data:getTrainData(), args.network.numHiddenUnits, 
+      args.network.numHiddenLayers, state.data.num_classes, 
+		  args.network.dropout_prob, args.subj_data.predict_subj, 
+		  state.data.num_subjects,args.network)
+    elseif cmdOptions.network_type == 'max_temp_conv' then 
       network, criterion = sleep_eeg.models.createMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
         args.network.numHiddenLayers, state.data.num_classes, 
 		args.network.dropout_prob, args.subj_data.predict_subj, 
 		state.data.num_subjects,args.network)
-    elseif cmdOptions.network_type == 'sum_temp_conv' then 
-      network, criterion = sleep_eeg.models.createSumTempConvClassificationNetwork( 
-        state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, 
-		state.data.num_subjects,args.network)
-    elseif cmdOptions.network_type == 'max_channel_conv' then 
-      network, criterion = sleep_eeg.models.createMaxChannelConvClassificationNetwork( 
-        state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, 
-		state.data.num_subjects,args.network)
-    elseif cmdOptions.network_type == 'shallow_max_temp_conv' then 
-      network, criterion = sleep_eeg.models.createShallowMaxTempConvClassificationNetwork( 
-        state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, 
-		state.data.num_subjects,args.network)
-    elseif cmdOptions.network_type == 'no_max_temp_conv' then
-      network, criterion = sleep_eeg.models.createNoMaxTempConvClassificationNetwork( 
-        state.data:getTrainData(), args.network.numHiddenUnits, 
-        args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, state.data.num_subjects, args.network)
     elseif cmdOptions.network_type == 'fully_connected' then
       network, criterion = sleep_eeg.models.createFullyConnectedNetwork(
 	  	state.data:getTrainData(), args.network.numHiddenUnits, 
