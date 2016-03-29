@@ -128,6 +128,7 @@ local initArgs = function()
   cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
+  --temporal smoothing parameters
   cmd:option('-smooth_std', -1, "for max temp conv, should we smooth output of convolution (smooth_std > 0) and if so, what's the std of our gaussian?")
   cmd:option('-smooth_width', 5, "if we're smoothing (smooth_std > 0), how many non-zero elements do we have in our gaussian filter? must be odd number >= 3")
   cmd:option('-smooth_step', 1, "how many timepoints do we slide over after performing our convolution")
@@ -135,16 +136,19 @@ local initArgs = function()
   cmd:option('-hidden_act_fn', 'relu', "activation function for hidden units; valid values: 'relu', 'sigmoid', 'tanh', 'lrelu' (leaky relu), 'prelu' (parametric relu)")
   cmd:option('-show_network', false, 'whether or not to save network graph to disk for predict_subj networks; doesnt work on della')
   cmd:option('-mini_batch_size', -1, 'max number of exaples per minibatch (-1 uses a single batch)')
-  cmd:option('-kernel_width', 1, 'convolution kernel width for deep_max_temp_conv')
-  cmd:option('-stride', 1, 'conv stride multiple of kernel_width')
-  cmd:option('-max_pool_width_prcnt', 1, 'percent of input to pool over')
-  cmd:option('-conv_layers_kws','','comma-separated list of conv_layers kws size reduction i.e. "" gives just one conv layer with kernel_width = $[-kernel_width], "0" will give two conv layers with same kernel, "2" will give two spatial convs, with the second convolution layer having a kernel width = max($[-kernel_width]-2,1), "2,1" would give the same, except add a third layer with kernel_width = max($[kernel_width]-2-1,1)')
+  --deep conv v2 parameters: less safe, more explicit
+  cmd:option('-kernel_widths', '1', 'comma-separated list of convolution kernel width for deep_max_temp_conv, use -1 to disable for a given layer')
+  cmd:option('-max_pool_widths', '2', 'comma-separated list of max-pool widths, use -1 to disable for a given layer, 0 to max over entire input')
+  cmd:option('-conv_strides', '1', 'comma-separated list of conv strides, use -1 to disable for a given layer')
+  cmd:option('-max_pool_strides', '2', 'comma-separated list of max-pool strides, use -1 to disable for given layer')
+  cmd:option('-num_conv_filters', '128', 'comma-separated list of num filters per conv layer')
+ 
   cmd:text()
   opt = cmd:parse(arg)
   print(opt)
   assert(opt.smooth_width >= 3, '-smooth_width must be >= 3')
-  assert(opt.max_pool_width_prcnt >= 0 and opt.max_pool_width_prcnt <= 1,
-    'max pool width prcnt must be b/w 0 and 1')
+  --assert(opt.max_pool_width_prcnt >= 0 and opt.max_pool_width_prcnt <= 1,
+    --'max pool width prcnt must be b/w 0 and 1')
   return opt, cmd
 end
 
@@ -235,11 +239,19 @@ M.generalDriver = function()
   args.network.smooth_step = cmdOptions.smooth_step
   args.network.network_type = cmdOptions.network_type
   args.network.hidden_act_fn = cmdOptions.hidden_act_fn
-  args.network.kernel_width = cmdOptions.kernel_width
-  args.network.stride = cmdOptions.stride
-  args.network.max_pool_width_prcnt = cmdOptions.max_pool_width_prcnt
-  args.network.conv_layers_kws = cmdOptions.conv_layers_kws
   args.network.show_network = cmdOptions.show_network
+  --deep_conv params v2
+  if args.network.network_type ~= 'fully_connected' then
+    args.network.convString = 'kW' .. cmdOptions.kernel_widths .. 'dW' ..
+      cmdOptions.conv_strides .. 'pW' .. cmdOptions.max_pool_widths .. 'dPW' ..
+	  cmdOptions.max_pool_strides .. 'numFilts' .. cmdOptions.num_conv_filters
+  else
+    args.network.convString = ''
+  end
+
+  args.network.kernel_widths, args.network.conv_strides, 
+    args.network.max_pool_widths, args.network.max_pool_strides,
+	args.network.num_conv_filters = sleep_eeg.utils.extractAndCheckConvOptions(cmdOptions)
 
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}

@@ -485,52 +485,48 @@ M.createDeepMaxTempConvClassificationNetwork = function(...)
 			prev = input
 		end
      
-    local stride = math.floor(net_args.stride * net_args.kernel_width)
-    local prevOutputWidth = M.getConvOutputWidth(numTimePoints, net_args.kernel_width, stride)
 
-    prev = nn.TemporalConvolution(numInputUnits, numHiddenUnits, net_args.kernel_width, stride)(prev)
-    prev = hiddenActivationFn()(prev)
+	local prevOutputWidth = numTimePoints
+	local prevNumFilters = numInputUnits
 
-    if shouldSmooth then
-      prev = smoothModule(prev)
-      prevOutputWidth = smoothModule:getTemporalOutputSize(prevOutputWidth)
-    end
+	for conv_idx = 1, #net_args.kernel_widths do
+		local added_conv = false
+		local kernel_width = net_args.kernel_widths[conv_idx]
+		local conv_stride = net_args.conv_strides[conv_idx]
+		local max_pool_width = net_args.max_pool_widths[conv_idx]
+		local max_pool_stride = net_args.max_pool_strides[conv_idx]
+		local num_conv_filters = net_args.num_conv_filters[conv_idx]
 
-    local maxPoolWidth = math.floor(prevOutputWidth * net_args.max_pool_width_prcnt)
-    if maxPoolWidth > 1 then
-      prev = nn.TemporalMaxPooling(maxPoolWidth, maxPoolWidth)(prev)
-      prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, maxPoolWidth, maxPoolWidth)
-    else
-      print('Skipping Temporal Max Pooling:', prevOutputWidth, net_args.max_pool_width_prcnt)
-    end
 
-    --iterate through 
-    local prevKernelWidth = net_args.kernel_width
-    local conv_layers_kws = string.split(net_args.conv_layers_kws,',')
-    for convIdx, kernelWidthReduction in ipairs(conv_layers_kws) do
-      kernelWidthReduction = tonumber(kernelWidthReduction)
-      local newKernelWidth = math.max(1, math.min(prevKernelWidth - kernelWidthReduction, prevOutputWidth) )
-      prevKernelWidth = newKernelWidth
-      local newStride = math.max(1,math.floor(net_args.stride * newKernelWidth))
+		--check conv params okay
+		assert(prevOutputWidth >= kernel_width, string.format([[Specified conv
+		  kernel width = %d for layer: %d, but the input to that layer has 
+		  width %d]], conv_idx, kernel_width, prevOutputWidth))
+		assert(conv_stride > 0, "Can't have conv_stride = 0")
+		assert(num_conv_filters > 0, "Can't have num_conv_filters = 0")
 
-      --temporal convolution
-      prev = nn.TemporalConvolution(numHiddenUnits, numHiddenUnits, newKernelWidth, newStride)(prev)
-      prev = hiddenActivationFn()(prev)
-      prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, newKernelWidth, newStride)
+		prev = nn.TemporalConvolution(prevNumFilters, num_conv_filters, 
+		  kernel_width, conv_stride)(prev)
+        prev = hiddenActivationFn()(prev)
+		--update our widths and filters
+		prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, kernel_width, 
+		  conv_stride)
+		prevNumFilters = num_conv_filters
 
-      --temporal pooling
-      local newMaxPoolWidth = math.floor(prevOutputWidth * net_args.max_pool_width_prcnt)
-	  print(newMaxPoolWidth)
-      if newMaxPoolWidth > 1 then
-        prev = nn.TemporalMaxPooling(newMaxPoolWidth, newMaxPoolWidth)(prev)
+		if max_pool_width == 0 then --special code for max over entire input
+			max_pool_width = prevOutputWidth
+			max_pool_stride = 1
+		end
 
-        prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, newMaxPoolWidth, newMaxPoolWidth)
-      else
-        print('Skipping Temporal Max Pooling:', prevOutputWidth, net_args.max_pool_width_prcnt)
-      end
-    end
+		if max_pool_width > 1 and max_pool_stride > 0 then
+			prev = nn.TemporalMaxPooling(max_pool_width, max_pool_stride)(prev)
+		    prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, 
+			  max_pool_width, max_pool_stride)
+		end
 
-    local prevLayerOutputs =  prevOutputWidth*numHiddenUnits --from the convNet
+	end
+
+    local prevLayerOutputs =  prevOutputWidth*prevNumFilters --from the convNet
     prev = nn.View(-1):setNumInputDims(2)(prev)
 
     for hiddenLayerIdx = 2, numPostConvHiddenLayers do
@@ -583,54 +579,47 @@ M.createDeepMaxTempConvClassificationNetwork = function(...)
       model:add(nn.Dropout(dropout_prob))
     end
 
-    local stride = math.floor(net_args.stride * net_args.kernel_width)
-    local prevOutputWidth = M.getConvOutputWidth(numTimePoints, net_args.kernel_width, stride)
-	--first convolution
-    tempConv = nn.TemporalConvolution(numInputUnits, numHiddenUnits, net_args.kernel_width, stride)
-    model:add(tempConv)
-    model:add(hiddenActivationFn())
+	local prevOutputWidth = numTimePoints
+	local prevNumFilters = numInputUnits
 
-    --local prevOutputWidth = numTimePoints
-    if shouldSmooth then
-      model:add(smoothModule)
-      prevOutputWidth = smoothModule:getTemporalOutputSize(prevOutputWidth)
-    end
+	for conv_idx = 1, #net_args.kernel_widths do
+		local added_conv = false
+		local kernel_width = net_args.kernel_widths[conv_idx]
+		local conv_stride = net_args.conv_strides[conv_idx]
+		local max_pool_width = net_args.max_pool_widths[conv_idx]
+		local max_pool_stride = net_args.max_pool_strides[conv_idx]
+		local num_conv_filters = net_args.num_conv_filters[conv_idx]
 
-	local maxPoolWidth = math.floor(prevOutputWidth * net_args.max_pool_width_prcnt)
-    if maxPoolWidth > 1 then
-      model:add(nn.TemporalMaxPooling(maxPoolWidth, maxPoolWidth))
-      prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, maxPoolWidth, maxPoolWidth)
-    else
-      print('Skipping Temporal Max Pooling:', prevOutputWidth, net_args.max_pool_width_prcnt)
-    end
 
-    --iterate through 
-    local prevKernelWidth = net_args.kernel_width
-    local conv_layers_kws = string.split(net_args.conv_layers_kws,',')
-    for convIdx, kernelWidthReduction in ipairs(conv_layers_kws) do
-      kernelWidthReduction = tonumber(kernelWidthReduction)
-      local newKernelWidth = math.max(1, math.min(prevKernelWidth - kernelWidthReduction, prevOutputWidth) )
-      prevKernelWidth = newKernelWidth
-      local newStride = math.max(1,math.floor(net_args.stride * newKernelWidth))
+		--check conv params okay
+		assert(prevOutputWidth >= kernel_width, string.format([[Specified conv
+		  kernel width = %d for layer: %d, but the input to that layer has 
+		  width %d]], conv_idx, kernel_width, prevOutputWidth))
+		assert(conv_stride > 0, "Can't have conv_stride = 0")
+		assert(num_conv_filters > 0, "Can't have num_conv_filters = 0")
 
-      --temporal convolution
-      model:add(nn.TemporalConvolution(numHiddenUnits, numHiddenUnits, newKernelWidth, newStride))
-      model:add(hiddenActivationFn())
-      prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, newKernelWidth, newStride)
+		model:add(nn.TemporalConvolution(prevNumFilters, num_conv_filters, 
+		  kernel_width, conv_stride))
+        model:add(hiddenActivationFn())
+		--update our widths and filters
+		prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, kernel_width, 
+		  conv_stride)
+		prevNumFilters = num_conv_filters
 
-      --temporal pooling
-      local newMaxPoolWidth = math.floor(prevOutputWidth * net_args.max_pool_width_prcnt)
-	  print(newMaxPoolWidth)
-      if newMaxPoolWidth > 1 then
-        model:add(nn.TemporalMaxPooling(newMaxPoolWidth, newMaxPoolWidth))
+		if max_pool_width == 0 then --special code for max over entire input
+			max_pool_width = prevOutputWidth
+			max_pool_stride = 1
+		end
 
-        prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, newMaxPoolWidth, newMaxPoolWidth)
-      else
-        print('Skipping Temporal Max Pooling:', prevOutputWidth, net_args.max_pool_width_prcnt)
-      end
-    end
+		if max_pool_width > 1 and max_pool_stride > 0 then
+			model:add(nn.TemporalMaxPooling(max_pool_width, max_pool_stride))
+		    prevOutputWidth = M.getConvOutputWidth(prevOutputWidth, 
+			  max_pool_width, max_pool_stride)
+		end
 
-    local prevLayerOutputs =  prevOutputWidth*numHiddenUnits --from the convNet
+	end
+
+    local prevLayerOutputs =  prevOutputWidth*prevNumFilters --from the convNet
 
     model:add(nn.View(-1):setNumInputDims(2)) 
 

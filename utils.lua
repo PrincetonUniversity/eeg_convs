@@ -376,6 +376,30 @@ M.fileToURI = function(file)
   return 'file://' .. file
 end
 
+M.extractAndCheckConvOptions = function(cmdOptions)
+
+  local kernel_widths = string.split(cmdOptions.kernel_widths,',')
+  local conv_strides = string.split(cmdOptions.conv_strides,',')
+  local max_pool_widths = string.split(cmdOptions.max_pool_widths,',')
+  local max_pool_strides = string.split(cmdOptions.max_pool_strides,',')
+  local num_conv_filters = string.split(cmdOptions.num_conv_filters,',')
+
+  assert(#kernel_widths == #conv_strides and #kernel_widths == #max_pool_widths
+    and #kernel_widths == #max_pool_strides, [[Unequal number of conv/max_pool 
+	parameters supplied. If we have 3 kernel_widths (meaning 3 conv layers), then
+	 we need to have 3 conv_strides, 3 max_pool_widths and 3 max_pool strides. 
+	 and 3 num_conv_filters.]])
+  for idx = 1, #kernel_widths do
+	  kernel_widths[idx] = tonumber(kernel_widths[idx])
+	  conv_strides[idx] = tonumber(conv_strides[idx])
+	  max_pool_widths[idx] = tonumber(max_pool_widths[idx])
+	  max_pool_strides[idx] = tonumber(max_pool_strides[idx])
+	  num_conv_filters[idx] = tonumber(num_conv_filters[idx])
+  end
+  return kernel_widths, conv_strides, max_pool_widths, max_pool_strides,
+    num_conv_filters
+end
+
 M.makeConfigName = function(args, cmdOptions)
   
   local snake_to_CamelCase = function (s)
@@ -392,11 +416,9 @@ M.makeConfigName = function(args, cmdOptions)
     name = name:gsub('Max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
     name = name:gsub('max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
   end
-
-  if string.match(cmdOptions.network_type, 'max') then
-	  name = name .. 'Kw' .. tostring(cmdOptions.kernel_width) .. 'dW' ..
-	    tostring(cmdOptions.stride) .. cmdOptions.conv_layers_kws
-  end
+  
+  
+  name = name .. args.network.convString
 
   if cmdOptions.dropout_prob > 0 then
   	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)

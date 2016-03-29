@@ -9,6 +9,7 @@ local initArgs = function()
   cmd:text('Options')
   cmd:option('-simulated', -1, '-1 = no sim data, 1 = basic, 2 = no signal, 3 = basic + noise (not implemented yet)')
   cmd:option('-percent_train', 65, 'percent of data to use for training')
+  cmd:option('-cuda', false, 'use cuda')
   cmd:option('-percent_valid', 20, 'percent of data to use for validation')
   cmd:option('-loso',false, 'leave-one-subject-out validation? NOTE: currently not implemented')
   cmd:option('-run_single_subj',false, 'run within subject analysis')
@@ -66,12 +67,12 @@ local padSleepDataIfNeeded = function(args, subj_data)
 	--this means we have to pad our sleep data, we currently do not handle the 
 	--case where we need to trim wake data to apply a sleep classifier because 
 	--i don't see any reason why we would want to do that
-	if isWakeOrWakeTestNet and isSleepData then
+	if isWakeOrWakeTestNet and isSleepData and subj_data._train_data:size(2) == 238 then
 		local function appendData(data) 
 			local batch = data:size(1)
 			local features = data:size(3)
 			local numTimePointsToAdd = 250 - 238
-			local paddedData = torch.Tensor(batch,numTimePointsToAdd,features):zero()
+			local paddedData = torch.Tensor():typeAs(subj_data._train_data):resize(batch,numTimePointsToAdd,features):zero()
 			return torch.cat(data,paddedData,2)
 		end
 		subj_data._train_data = appendData(subj_data._train_data)
@@ -108,6 +109,7 @@ M.run = function()
   args.subj_data.wake = cmdOptions.wake
   args.subj_data.wake_test = cmdOptions.wake_test
   args.subj_data.predict_subj = cmdOptions.predict_subj
+  args.cuda = cmdOptions.cuda
   args.subj_data.temporal_resolution = cmdOptions.ms
   args.subj_data.SO_locked = cmdOptions.SO_locked
   args.subj_data.ERP_diff = cmdOptions.ERP_diff
@@ -146,6 +148,10 @@ M.run = function()
 	  args.subj_data.percent_train, args.subj_data.predict_subj)
   end
   print('Loaded data from: ' .. sleep_eeg.utils.fileToURI(args.subj_data.filename))
+
+  if args.cuda then
+	  subj_data:cuda()
+  end
 
   args.saved_net_path = opt.saved_net_path
   print('Loading network from: ' .. args.saved_net_path)
