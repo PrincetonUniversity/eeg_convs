@@ -70,8 +70,19 @@ M.performTrainIteration = function(fullState)
     fullState.trainSetLoss[fullState.trainingIteration] = fullState.trainSetLoss[fullState.trainingIteration] + fullState.criterion:forward(fullState.trainModelOut, sleep_eeg.utils.indexIntoTensorOrTableOfTensors(trainTargets,1,miniBatchTrials)) * miniBatchWeight
     fullState.trainSetClassAcc = 1 --evaluation.classification(trainModelOut, trainTargets)
 
+    local criterionGradInput = fullState.criterion:backward(fullState.trainModelOut, sleep_eeg.utils.indexIntoTensorOrTableOfTensors(trainTargets,1,miniBatchTrials))
+
+    if fullState.args.weight_loss_function and fullState.data.can_weight_loss then
+        --let's get the appropriate weights for this miniBatch
+        local miniBatchExampleWeights = fullState.data:getTrainExampleWeights():index(1,miniBatchTrials)
+        miniBatchExampleWeights:div(miniBatchExampleWeights:sum()) --normalize so we're not working with tiny weights
+        for class_idx = 1, criterionGradInput:size(2) do
+            criterionGradInput[{{},class_idx}] = torch.cmul(criterionGradInput[{{},class_idx}], miniBatchExampleWeights)
+        end
+    end
+
     --actually update our network
-    fullState.network:backward(batchTrainInputs, fullState.criterion:backward(fullState.trainModelOut, sleep_eeg.utils.indexIntoTensorOrTableOfTensors(trainTargets,1,miniBatchTrials)))
+    fullState.network:backward(batchTrainInputs, criterionGradInput)
 
     fullState.optimizer(function() return fullState.trainSetLoss, fullState.gradParams end,
       fullState.params, fullState.optimSettings)

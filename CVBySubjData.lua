@@ -59,7 +59,8 @@ function CVBySubjData:__loadSubjData(filename)
 		- labels: (integer )class indicator tensor with [num_trials x 1] dimensions
 		- subject_ids: table of string subj id, with indicies [1 to num_trials]
 	--]]
-  local loadedData = sleep_eeg.utils.matioHelper(filename, {'data', 'subject_ids', 'labels', 'dimensions', 'conds'})
+  local loadedData = sleep_eeg.utils.matioHelper(filename, {'data', 'subject_ids', 'labels', 'dimensions', 'conds','extras'})
+
   assert(loadedData['data'] and loadedData['subject_ids'] and 
     loadedData['labels'] and loadedData['dimensions'] and loadedData['conds'], 
     'One of the following variables is expected, but not present in file:' ..
@@ -93,8 +94,42 @@ function CVBySubjData:__loadSubjData(filename)
 	local numTrials = self._all_data:size(1)
 	local trialNums = torch.range(1,numTrials):long():totable()
 
-	self.dataframe = DataFrame.new({trial = trialNums, 
-			subj_id = self.subjectIDs, class = self._all_targets:totable()})
+  local dfVariables = {trial = trialNums, subj_id = self.subjectIDs, class = self._all_targets:totable()}
+  self.extra_fields = {}
+  --add in additional variable for sleep
+  if loadedData['extras']  then
+    if loadedData['extras'].img_pres_num then
+      self.img_pres_num = loadedData.extras.img_pres_num:squeeze()
+      dfVariables['img_pres_num'] = self.img_pres_num:totable()
+      table.insert(self.extra_fields, 'img_pres_num')
+
+      --we also make a field based off of this one, that inversely weights values 
+      --based on their presentation num
+      self.weights_per_image = self.img_pres_num:pow(-1)
+      dfVariables['weights_per_image'] = self.weights_per_image:totable()
+      table.insert(self.extra_fields, 'weights_per_image')
+
+      self.can_weight_loss = true
+    end
+    if loadedData['extras'].SOpow then
+      --have to transpose this badboy
+      self.SOpow = loadedData.extras.SOpow:squeeze()
+      dfVariables['SOpow'] = self.SOpow:totable()
+      table.insert(self.extra_fields, 'SOpow')
+    end
+    if loadedData['extras'].delta_memory then
+      self.delta_memory = loadedData.extras.delta_memory:squeeze()
+      dfVariables['delta_memory'] = self.delta_memory:totable()
+      table.insert(self.extra_fields, 'delta_memory')
+    end
+    if loadedData['extras'].sound_IDs then
+      self.sound_IDs = loadedData.extras.sound_IDs:squeeze()
+      dfVariables['sound_IDs'] = self.sound_IDs:totable()
+      table.insert(self.extra_fields, 'sound_IDs')
+    end
+  end
+
+	self.dataframe = DataFrame.new(dfVariables)
 
 	self.subj_ids = self.dataframe:uniqueValues('subj_id')
 	self.classes = self.dataframe:uniqueValues('class')
@@ -117,6 +152,10 @@ function CVBySubjData:swapTemporalAndChannelDims()
 	self._train_data  = self._train_data:transpose(2,3)
 	self._valid_data = self._valid_data:transpose(2,3)
 	self._test_data = self._test_data:transpose(2,3)
+end
+
+function CVBySubjData:getTrainExampleWeights()
+  return self.extras.train.weights_per_image
 end
 
 --make training, validation and test set by looking at each
@@ -239,6 +278,19 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self._test_data = CVBySubjData.__getRows(self._all_data, allTest)
   self._test_labels = torch.gather(self._all_targets, 1, allTest)
   self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
+
+  --finally re-order our extra_fields
+  self.extras = {}
+  self.extras.train = {}
+  self.extras.test = {}
+  self.extras.valid = {}
+  for _,field_name in ipairs(self.extra_fields) do
+    self.extras.train[field_name] = torch.gather(self[field_name], 1, allTrain)
+    self.extras.valid[field_name] = torch.gather(self[field_name], 1, allValid)
+    self.extras.test[field_name] = torch.gather(self[field_name], 1, allTest)
+    --clean up
+    self[field_name] = nil
+  end
 
   --and we no longer need our self._all_data OR self.dataframe
   self._all_data = nil

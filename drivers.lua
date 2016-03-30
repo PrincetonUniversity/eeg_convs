@@ -123,10 +123,12 @@ local initArgs = function()
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
+  cmd:option('-weight_loss_function', false, 'whether or not we should weight training examples inversely proportional to their image presentation number (works for sleep only) ')
   cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
   cmd:option('-ms', 4, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
   cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
+  cmd:option('-min_presentations', -1, 'number of min presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
   --temporal smoothing parameters
   cmd:option('-smooth_std', -1, "for max temp conv, should we smooth output of convolution (smooth_std > 0) and if so, what's the std of our gaussian?")
@@ -165,6 +167,7 @@ M.generalDriver = function()
   args.float_precision = cmdOptions.float_precision
   args.iterate_smoothing = cmdOptions.iterate_smoothing
   args.miniBatchSize = cmdOptions.mini_batch_size
+  args.weight_loss_function = cmdOptions.weight_loss_function
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')
@@ -186,6 +189,7 @@ M.generalDriver = function()
   args.subj_data.temporal_resolution = cmdOptions.ms
   args.subj_data.ERP_diff = cmdOptions.ERP_diff
   args.subj_data.ERP_I = cmdOptions.ERP_I
+  args.subj_data.min_presentations = cmdOptions.min_presentations
   args.subj_data.max_presentations = cmdOptions.max_presentations
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
@@ -353,19 +357,19 @@ M.generalDriver = function()
 
   table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.plotForRNGSweep)
 
-  if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
-	  and cmdOptions.num_hidden_mult == 1 then
-    table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.getDistributionOfMaxTimepoints)
-  end
+  --if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj and args.network.num_conv_filters
+	  --and cmdOptions.num_hidden_mult == 1 then
+    --table.insert(args.training.trainingCompleteHooks, sleep_eeg.hooks.getDistributionOfMaxTimepoints)
+  --end
 
   --Periodic Logging Hooks
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
 
-  if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
-	  and cmdOptions.num_hidden_mult == 1 then 
-    args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
-  end
+  --if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
+	  --and cmdOptions.num_hidden_mult == 1 then 
+    --args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
+  --end
 
   if not cmdOptions.dont_save_network then
     table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveNetwork)

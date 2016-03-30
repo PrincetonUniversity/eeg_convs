@@ -410,13 +410,6 @@ M.makeConfigName = function(args, cmdOptions)
   end
 
   local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
-
-  if cmdOptions.max_pool_outs ~= 1 and string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') then
-    --lazy way of dealing with the fact that sometimes we have "Max", and sometimes we have "max"
-    name = name:gsub('Max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
-    name = name:gsub('max', function (s) return s .. tostring(cmdOptions.max_pool_width_prcnt) end)
-  end
-  
   
   name = name .. args.network.convString
 
@@ -448,6 +441,9 @@ M.makeConfigName = function(args, cmdOptions)
   end
   if cmdOptions.predict_subj then
     name = name .. 'PredSubj' .. cmdOptions.class_to_subj_loss_ratio .. 'to1'
+  end
+  if cmdOptions.weight_loss_function then
+    name = name .. 'WeightLoss' 
   end
   name = name .. cmdOptions.num_hidden_mult .. 'xHidden' .. cmdOptions.num_hidden_layers 
   name = name .. '_' .. cmdOptions.ms .. 'ms'
@@ -503,7 +499,10 @@ M.getDataFilenameFromArgs = function(args)
     fileNameRoot = fileNameRoot:gsub('ERP','ERP_diff')
   end
 
-  --for maxPresentations, we just append "maxPres"
+  --for min/maxPresentations, we just append "min/maxPres"
+  if args.subj_data.min_presentations >= 1 then
+    fileNameRoot = fileNameRoot .. '_minPres' .. args.subj_data.min_presentations
+  end
   if args.subj_data.max_presentations >= 1 then
     fileNameRoot = fileNameRoot .. '_maxPres' .. args.subj_data.max_presentations
   end
