@@ -1,4 +1,4 @@
-local hyper = {}
+local ParamSweep = {}
 local pretty = require 'pl.pretty'
 local tablex = require 'pl.tablex'
 
@@ -112,9 +112,6 @@ function gridmod.combineAll(key_to_values)
   return params
 end
 
--- TODO(gdesjardins): unify grid search interface in learning.lua.hyper. Modify
--- current implementation in init.lua to support the grid_search.lua interface,
--- e.g. flattenHyperparameters, printCombinations.
 local function grid_job(opt, grid_options)
   if not opt.id or opt.id < 0 or not grid_options then
     --log.raiseError('Invalid id ' .. opt.id .. '. Grid search cannot continue.')
@@ -142,7 +139,7 @@ local function grid_job(opt, grid_options)
 end
 
 
-hyper.sample = sample_job
-hyper.grid = grid_job
+ParamSweep.sample = sample_job
+ParamSweep.grid = grid_job
 
-return hyper
+return ParamSweep
