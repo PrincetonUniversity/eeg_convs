@@ -13,6 +13,9 @@ elseif os.getenv('USER') == 'lpiloto' then
   if os.getenv('HOME') == '/Users/lpiloto' then
     dotrc.has_debugger = false
     dotrc.save_dir = '/Users/lpiloto/Dropbox/code/torch/sleep_eeg_v2/output/'
+  elseif os.getenv('HOME') == '/usr/people/lpiloto' then --spock
+    dotrc.has_debugger = false
+	dotrc.save_dir = paths.concat(paths.cwd(),'output/')
   else -- we're on della 
 	  dotrc.save_dir = '/tigress/lpiloto/outputs/'
   end
