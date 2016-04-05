@@ -111,7 +111,8 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv"')
+  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv", "rnn"')
+  cmd:option('-rnn_type', 'valid values = "vanilla" for vanilla rnn with tanh nonlinearity, or "lstm" for lstm, only applicable if -network_type = "rnn"')
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
   cmd:option('-num_hidden_layers', 1, 'Number of weights between layers, always at least 1 (input --> output), greater than 1 creates hidden layers')
@@ -242,10 +243,11 @@ M.generalDriver = function()
   args.network.smooth_width = cmdOptions.smooth_width
   args.network.smooth_step = cmdOptions.smooth_step
   args.network.network_type = cmdOptions.network_type
+  args.network.rnn_type = cmdOptions.rnn_type
   args.network.hidden_act_fn = cmdOptions.hidden_act_fn
   args.network.show_network = cmdOptions.show_network
   --deep_conv params v2
-  if args.network.network_type ~= 'fully_connected' then
+  if string.find(args.network.network_type, 'conv') then
     args.network.convString = 'kW' .. cmdOptions.kernel_widths .. 'dW' ..
       cmdOptions.conv_strides .. 'pW' .. cmdOptions.max_pool_widths .. 'dPW' ..
 	  cmdOptions.max_pool_strides .. 'numFilts' .. cmdOptions.num_conv_filters
@@ -432,14 +434,21 @@ M.generalDriver = function()
       network, criterion = sleep_eeg.models.createMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
         args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj, 
-		state.data.num_subjects,args.network)
+        args.network.dropout_prob, args.subj_data.predict_subj, 
+        state.data.num_subjects,args.network)
     elseif cmdOptions.network_type == 'fully_connected' then
       network, criterion = sleep_eeg.models.createFullyConnectedNetwork(
 	  	state.data:getTrainData(), args.network.numHiddenUnits, 
-		args.network.numHiddenLayers, state.data.num_classes, 
-		args.network.dropout_prob, args.subj_data.predict_subj,
-		state.data.num_subjects, args.network)
+      args.network.numHiddenLayers, state.data.num_classes, 
+      args.network.dropout_prob, args.subj_data.predict_subj,
+      state.data.num_subjects, args.network)
+
+    elseif cmdOptions.network_type == 'rnn' then 
+      network, criterion = sleep_eeg.models.createRnnNetwork( 
+        state.data:getTrainData(), args.network.numHiddenUnits, 
+        args.network.numHiddenLayers, state.data.num_classes, 
+        args.network.dropout_prob, args.subj_data.predict_subj, 
+        state.data.num_subjects,args.network)
     end
     print('making network finished...')
     state:add('network',network, true)

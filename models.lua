@@ -11,6 +11,47 @@ end
 M.activationFns = {['relu'] = nn.ReLU, ['tanh'] = nn.Tanh, ['sigmoid'] = nn.Sigmoid, 
   ['prelu'] = nn.PReLU, ['lrelu'] = nn.LeakyReLU}
 
+M.createRnnNetwork = function(egInputBatch, numHiddenUnits, numHiddenLayers,
+    numOutputClasses,  dropout_prob, predict_subj, numSubjects, 
+    net_args)
+  
+  assert(require 'torch-rnn', 'Failed to load "torch-rnn" something is up')
+  --assert(not net_args.cuda, '-cuda for rnn not yet supported!!!')
+  assert(not predict_subj, 'predict_subj for rnn not supported')
+
+  if net_args.cuda then 
+    require 'cutorch'
+    require 'cunn'
+  end
+
+  local rnn_module
+  if net_args.rnn_type == 'vanilla' then
+    rnn_module = nn.VanillaRNN
+  elseif net_args.rnn_type == 'lstm' then
+    rnn_module = nn.LSTM
+  end
+	local numTimePoints = egInputBatch:size(2)
+	local numInputUnits = egInputBatch:size(3)
+	local numTotalFeatures = numTimePoints * numInputUnits
+  local model = nn.Sequential()
+  if dropout_prob > 0 then
+    model:add(nn.Dropout(dropout_prob))
+  end
+  local numPrevUnits = numInputUnits
+  for hidden_idx = 1, numHiddenUnits do
+    model:add(rnn_module(numPrevUnits, numHiddenUnits))
+    numPrevUnits = numHiddenUnits
+  end
+  model:add(nn.Select(2,numTimePoints)) --grab last timepoint from  time dimension (2)
+  model:add(nn.Linear(numPrevUnits,numOutputClasses))
+	model:add(nn.LogSoftMax())
+
+  local criterion = nn.ClassNLLCriterion()
+
+  return model, criterion
+	
+end
+
 --expect egInputBatch to have dimensions = [examples, time, features]
 M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits, 
 		numHiddenLayers, numOutputClasses, dropout_prob, predict_subj, 
