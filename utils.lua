@@ -410,6 +410,12 @@ M.makeConfigName = function(args, cmdOptions)
   end
 
   local name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+
+  if cmdOptions.network_type == 'rnn' then
+    name = snake_to_CamelCase(cmdOptions.rnn_type .. '_' .. cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+  else
+    name = snake_to_CamelCase(cmdOptions.network_type) .. firstToUpper(cmdOptions.optim)
+  end
   
   name = name .. args.network.convString
 
