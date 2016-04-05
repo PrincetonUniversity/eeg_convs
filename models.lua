@@ -48,8 +48,14 @@ M.createRnnNetwork = function(egInputBatch, numHiddenUnits, numHiddenLayers,
 
   local criterion = nn.ClassNLLCriterion()
 
+  if net_args.cuda then
+    model:cuda()
+    model:insert(nn.Copy('torch.CudaTensor',torch.getdefaulttensortype()),
+      #model.modules+1)
+  end
+
   return model, criterion
-	
+
 end
 
 --expect egInputBatch to have dimensions = [examples, time, features]
