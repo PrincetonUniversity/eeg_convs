@@ -38,7 +38,7 @@ M.createRnnNetwork = function(egInputBatch, numHiddenUnits, numHiddenLayers,
     model:add(nn.Dropout(dropout_prob))
   end
   local numPrevUnits = numInputUnits
-  for hidden_idx = 1, numHiddenUnits do
+  for hidden_idx = 1, numHiddenLayers do
     model:add(rnn_module(numPrevUnits, numHiddenUnits))
     numPrevUnits = numHiddenUnits
   end
