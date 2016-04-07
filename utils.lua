@@ -119,8 +119,14 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	end
 
 	--build filename
-	local filename = smoothString .. learningRateString .. '_' .. 
-	  rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid .. '.th7'
+  local filename 
+  if args.subj_data.shuffle_data then
+    filename  = 'SHUFFLE' .. smoothString .. learningRateString .. '_' .. 
+      rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid .. '.th7'
+  else
+    filename = smoothString .. learningRateString .. '_' .. 
+	    rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid .. '.th7'
+  end
 
 	local fullFilename = paths.concat(fullPath,filename)
 	print(fullFilename)

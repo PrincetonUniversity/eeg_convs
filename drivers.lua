@@ -286,6 +286,7 @@ local initArgs = function()
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
+  cmd:option('-shuffle_data', false, 'whether or not we should shuffle trials e.g. for generating a random permutation ')
   cmd:option('-predict_delta_memory', false, 'whether or not we should predict change in memory instead of stimulus identity. not compatible with -predict_subj flag')
   cmd:option('-weight_loss_function', false, 'whether or not we should weight training examples inversely proportional to their image presentation number (works for sleep only) ')
   cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
@@ -351,6 +352,7 @@ M.generalDriver = function()
   args.subj_data.wake_test = cmdOptions.wake_test
   args.subj_data.predict_subj = cmdOptions.predict_subj
   args.subj_data.predict_delta_memory = cmdOptions.predict_delta_memory
+  args.subj_data.shuffle_data = cmdOptions.shuffle_data
   args.subj_data.SO_locked = cmdOptions.SO_locked
   args.subj_data.temporal_resolution = cmdOptions.ms
   args.subj_data.ERP_diff = cmdOptions.ERP_diff

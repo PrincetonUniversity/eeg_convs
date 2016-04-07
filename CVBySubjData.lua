@@ -34,6 +34,7 @@ function CVBySubjData:__init(...)
 	sleep_eeg.CVData.__init(self, ...)
 	self.use_subjects_as_targets = use_subjects_as_targets
   self.predict_delta_memory = subj_data_args.predict_delta_memory
+  self.shuffle_data = subj_data_args.shuffle_data
 	self:__loadSubjData(filename)
   --self:__initSubjIDAndClassInfo()
   if not do_kfold_split then
@@ -268,19 +269,34 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   torch.setRNGState(regularRNG)
   self:__checkTrainValidTestSplit(allTrain, allValid, allTest)
 
+  --this code lets us shuffle our data: either we use the REAL indices corresponding
+  --to the train/valid/test trials when we select our labels/subject_ids/extra fields,
+  --which i'm calling metadata, OR we shuffle the indices
+  local trainMetaDataIdxes, validMetaDataIdxes, testMetaDataIdxes
+  function getMetaDataIdxes(realIdxes)
+    if self.shuffle_data then
+      return torch.gather(realIdxes, 1, torch.randperm(realIdxes:numel()):long())
+    else
+      return realIdxes
+    end
+  end
+  trainMetaDataIdxes = getMetaDataIdxes(allTrain)
+  validMetaDataIdxes = getMetaDataIdxes(allValid)
+  testMetaDataIdxes = getMetaDataIdxes(allTest)
+
   --finally let's consolidate our data
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
   -- can use more gather (more efficient) for 1D data
-  self._train_labels = torch.gather(self._all_targets, 1, allTrain) 
-  self._train_subjs = torch.gather(self._all_subj_idxs, 1, allTrain) 
+  self._train_labels = torch.gather(self._all_targets, 1, trainMetaDataIdxes) 
+  self._train_subjs = torch.gather(self._all_subj_idxs, 1, trainMetaDataIdxes) 
 
   self._valid_data = CVBySubjData.__getRows(self._all_data, allValid)
-  self._valid_labels = torch.gather(self._all_targets, 1, allValid)
-  self._valid_subjs = torch.gather(self._all_subj_idxs, 1, allValid) 
+  self._valid_labels = torch.gather(self._all_targets, 1, validMetaDataIdxes)
+  self._valid_subjs = torch.gather(self._all_subj_idxs, 1, validMetaDataIdxes) 
 
   self._test_data = CVBySubjData.__getRows(self._all_data, allTest)
-  self._test_labels = torch.gather(self._all_targets, 1, allTest)
-  self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
+  self._test_labels = torch.gather(self._all_targets, 1, testMetaDataIdxes)
+  self._test_subjs = torch.gather(self._all_subj_idxs, 1, testMetaDataIdxes) 
 
   --finally re-order our extra_fields
   self.extras = {}
@@ -288,9 +304,9 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self.extras.test = {}
   self.extras.valid = {}
   for _,field_name in ipairs(self.extra_fields) do
-    self.extras.train[field_name] = torch.gather(self[field_name], 1, allTrain)
-    self.extras.valid[field_name] = torch.gather(self[field_name], 1, allValid)
-    self.extras.test[field_name] = torch.gather(self[field_name], 1, allTest)
+    self.extras.train[field_name] = torch.gather(self[field_name], 1, trainMetaDataIdxes)
+    self.extras.valid[field_name] = torch.gather(self[field_name], 1, validMetaDataIdxes)
+    self.extras.test[field_name] = torch.gather(self[field_name], 1, testMetaDataIdxes)
     --clean up
     self[field_name] = nil
   end
@@ -473,23 +489,37 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
   local allTrain = foldTrainIdxs[fold_idx]
   local allTest = foldTestIdxs[fold_idx]
 
+  --this code lets us shuffle our data: either we use the REAL indices corresponding
+  --to the train/valid/test trials when we select our labels/subject_ids/extra fields,
+  --which i'm calling metadata, OR we shuffle the indices
+  local trainMetaDataIdxes, testMetaDataIdxes
+  function getMetaDataIdxes(realIdxes)
+    if self.shuffle_data then
+      return torch.gather(realIdxes, 1, torch.randperm(realIdxes:numel()):long())
+    else
+      return realIdxes
+    end
+  end
+  trainMetaDataIdxes = getMetaDataIdxes(allTrain)
+  testMetaDataIdxes = getMetaDataIdxes(allTest)
+
   --finally let's consolidate our data
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
   -- can use more gather (more efficient) for 1D data
-  self._train_labels = torch.gather(self._all_targets, 1, allTrain) 
-  self._train_subjs = torch.gather(self._all_subj_idxs, 1, allTrain) 
+  self._train_labels = torch.gather(self._all_targets, 1, trainMetaDataIdxes) 
+  self._train_subjs = torch.gather(self._all_subj_idxs, 1, trainMetaDataIdxes) 
 
   self._test_data = CVBySubjData.__getRows(self._all_data, allTest)
-  self._test_labels = torch.gather(self._all_targets, 1, allTest)
-  self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
+  self._test_labels = torch.gather(self._all_targets, 1, testMetaDataIdxes)
+  self._test_subjs = torch.gather(self._all_subj_idxs, 1, testMetaDataIdxes) 
 
   --finally re-order our extra_fields
   self.extras = {}
   self.extras.train = {}
   self.extras.test = {}
   for _,field_name in ipairs(self.extra_fields) do
-    self.extras.train[field_name] = torch.gather(self[field_name], 1, allTrain)
-    self.extras.test[field_name] = torch.gather(self[field_name], 1, allTest)
+    self.extras.train[field_name] = torch.gather(self[field_name], 1, trainMetaDataIdxes)
+    self.extras.test[field_name] = torch.gather(self[field_name], 1, testMetaDataIdxes)
     --clean up
     self[field_name] = nil
   end
