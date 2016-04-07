@@ -448,6 +448,9 @@ M.makeConfigName = function(args, cmdOptions)
   if cmdOptions.predict_subj then
     name = name .. 'PredSubj' .. cmdOptions.class_to_subj_loss_ratio .. 'to1'
   end
+  if cmdOptions.predict_delta_memory then
+    name = name .. 'PredDeltaMem' 
+  end
   if cmdOptions.weight_loss_function then
     name = name .. 'WeightLoss' 
   end

@@ -276,24 +276,26 @@ M.plotForRNGSweep = function(fullState)
 	M.__makeAndSavePlot(saveFile, title, lossPlots)
 	
 	--class acc plots
-	local classAccPlots = {}
-  for k,v in pairs(fullState.plotting.accuracy) do
-    local keyName = v
-    M.__plotSymbol(classAccPlots, k, fullState[keyName][{{1,iteration}}])
+  if fullState.plotting.accuracy then
+    local classAccPlots = {}
+    for k,v in pairs(fullState.plotting.accuracy) do
+      local keyName = v
+      M.__plotSymbol(classAccPlots, k, fullState[keyName][{{1,iteration}}])
+    end
+    saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
+    print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
+    title = fullState.args.driver_name .. '\\nClass Acc' .. 
+      ' ' .. fullState.args.save_file
+    M.__makeAndSavePlot(saveFile, title, classAccPlots)
   end
-	saveFile = sleep_eeg.utils.replaceTorchSaveWithPngSave(newSaveFile, 'ClassAcc')
-	print('Saving plot to: ' .. sleep_eeg.utils.fileToURI(saveFile))
-	title = fullState.args.driver_name .. '\\nClass Acc' .. 
-	  ' ' .. fullState.args.save_file
-	M.__makeAndSavePlot(saveFile, title, classAccPlots)
 
 end
 
 M.__getConfusionMatrixName = function(trainValidOrTestData, outputTableIndex)
-	assert(trainValidOrTestData and type(trainValidOrTestData) == 'string')
-	assert(trainValidOrTestData == 'train' or trainValidOrTestData == 'test' or 
-		trainValidOrTestData == 'valid', 'Only valid values are "train", ' ..
-		' "valid" or "test"')
+  assert(trainValidOrTestData and type(trainValidOrTestData) == 'string')
+  assert(trainValidOrTestData == 'train' or trainValidOrTestData == 'test' or 
+    trainValidOrTestData == 'valid', 'Only valid values are "train", ' ..
+    ' "valid" or "test"')
 	local confMatrixKeyName = trainValidOrTestData 
   if outputTableIndex then
     confMatrixKeyName = confMatrixKeyName .. outputTableIndex .. '_confMatrix'

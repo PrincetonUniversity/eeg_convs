@@ -43,10 +43,17 @@ M.createRnnNetwork = function(egInputBatch, numHiddenUnits, numHiddenLayers,
     numPrevUnits = numHiddenUnits
   end
   model:add(nn.Select(2,numTimePoints)) --grab last timepoint from  time dimension (2)
-  model:add(nn.Linear(numPrevUnits,numOutputClasses))
-	model:add(nn.LogSoftMax())
 
-  local criterion = nn.ClassNLLCriterion()
+
+  local criterion
+  if not net_args.predict_delta_memory then
+    model:add(nn.Linear(numPrevUnits,numOutputClasses))
+    model:add(nn.LogSoftMax())
+    criterion = nn.ClassNLLCriterion()
+  else
+    model:add(nn.Linear(numPrevUnits,1))
+    criterion = nn.MSECriterion(true)
+  end
 
   if net_args.cuda then
     model:cuda()
@@ -137,7 +144,7 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 
 		--model:forward(egInputBatch)
 		--graph.dot(model.fg, 'mlp','test2')
-
+    assert(not net_args.predict_delta_memory, '-predict_subj and -predict_delta_memory not currently supported, although babytown easy to add if curious')
 		return model, criterion
 	else
 		local model = nn.Sequential()
@@ -154,21 +161,25 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 				lastLayer = numHiddenUnits
 			end
 
-			model:add(nn.Linear(numHiddenUnits,numOutputClasses))
-		else
-			model:add(nn.Linear(numTotalFeatures,numOutputClasses))
 		end
 
 		--finally logsoftmax gives us 1 numOutputClasses-way classifier
-		model:add(nn.LogSoftMax())
+
+    local criterion
+    if not net_args.predict_delta_memory then
+			model:add(nn.Linear(numTotalFeatures,numOutputClasses))
+      model:add(nn.LogSoftMax())
+      criterion = nn.ClassNLLCriterion()
+    else
+			model:add(nn.Linear(numTotalFeatures,1))
+      criterion = nn.MSECriterion(true)
+    end
 		if net_args.cuda then
 			model:cuda()
 			model:insert(nn.Copy('torch.CudaTensor',torch.getdefaulttensortype()),
 			  #model.modules+1)
 		end
 
-		--local criterion = nn.CrossEntropyCriterion()
-		local criterion = nn.ClassNLLCriterion()
 
 		return model, criterion
 	end
@@ -286,11 +297,13 @@ M.deprecated.createSumTempConvClassificationNetwork = function(...)
     model:add(nn.Linear(prevLayerOutputs,numOutputClasses))
 
     --finally logsoftmax gives us 1 numOutputClasses-way classifier
-    model:add(nn.LogSoftMax())
-
-    --local criterion = nn.CrossEntropyCriterion()
-    local criterion = nn.ClassNLLCriterion()
-
+    local criterion
+    if not net_args.predict_delta_memory then
+      model:add(nn.LogSoftMax())
+      criterion = nn.ClassNLLCriterion()
+    else
+      criterion = nn.MSECriterion(true)
+    end
     return model, criterion
   end
 end
@@ -345,11 +358,15 @@ M.deprecated.createShallowMaxTempConvClassificationNetwork = function(...)
     model:add(nn.TemporalMaxPooling(numTimePoints,1))
     model:add(nn.View(-1):setNumInputDims(2)) 
 
-    --finally logsoftmax gives us 1 numOutputClasses-way classifier
-    model:add(nn.LogSoftMax())
 
-    --local criterion = nn.CrossEntropyCriterion()
-    local criterion = nn.ClassNLLCriterion()
+    local criterion
+    if not net_args.predict_delta_memory then
+      --finally logsoftmax gives us 1 numOutputClasses-way classifier
+      model:add(nn.LogSoftMax())
+      criterion = nn.ClassNLLCriterion()
+    else
+      criterion = nn.MSECriterion(true)
+    end
 
     return model, criterion
   end
@@ -617,7 +634,8 @@ M.createDeepMaxTempConvClassificationNetwork = function(...)
       graph.dot(model.fg, 'mlp','deep_max_temp_conv')
     end
 
-        return model, criterion
+    assert(not net_args.predict_delta_memory, '-predict_subj and -predict_delta_memory not currently supported, although babytown easy to add if curious')
+    return model, criterion
 
   else
 
@@ -677,18 +695,22 @@ M.createDeepMaxTempConvClassificationNetwork = function(...)
     end
 
     --go from last hidden layer to number of classes
-    model:add(nn.Linear(prevLayerOutputs,numOutputClasses))
 
     --finally logsoftmax gives us 1 numOutputClasses-way classifier
-    model:add(nn.LogSoftMax())
-
-    --local criterion = nn.CrossEntropyCriterion()
-    local criterion = nn.ClassNLLCriterion()
+    local criterion
+    if not net_args.predict_delta_memory then
+      model:add(nn.Linear(prevLayerOutputs,numOutputClasses))
+      model:add(nn.LogSoftMax())
+      criterion = nn.ClassNLLCriterion()
+    else
+      model:add(nn.Linear(prevLayerOutputs,1))
+      criterion = nn.MSECriterion(true)
+    end
     if net_args.cuda then
-		model:cuda()
-		model:insert(nn.Copy('torch.CudaTensor',torch.getdefaulttensortype()),
-		  #model.modules+1)
-	end
+      model:cuda()
+      model:insert(nn.Copy('torch.CudaTensor',torch.getdefaulttensortype()),
+        #model.modules+1)
+    end
 
     return model, criterion
   end

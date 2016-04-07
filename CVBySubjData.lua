@@ -13,7 +13,7 @@ CVBySubjData.PERCENT_TEST = 15
 
 function CVBySubjData:__init(...)
   local args, filename, do_kfold_split, percent_valid, percent_train,
-  use_subjects_as_targets, percent_in_fold, fold_number= dok.unpack(
+  use_subjects_as_targets, percent_in_fold, fold_number, subj_data_args = dok.unpack(
     {...},
     'CVBySubjData',
     'Loads subject data and splits it into training, validation, and test sets',
@@ -26,12 +26,14 @@ function CVBySubjData:__init(...)
 		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = false},
 		{arg='use_subjects_as_targets', type ='boolean', help='whether or not to return targets as {class, subjects}', req = true},
 		{arg='percent_in_fold', type ='boolean', help='percent of data in each fold, only required if do_kfold_split is true', req = false},
-		{arg='fold_number', type ='boolean', help='which fold to test on, only required if do_kfold_split is true', req = false}
+		{arg='fold_number', type ='boolean', help='which fold to test on, only required if do_kfold_split is true', req = false},
+    {arg='subj_data_args', type='table', help='the table of all subj_data_args args', req = true}
    )
 
 	--call our parent constructor 
 	sleep_eeg.CVData.__init(self, ...)
 	self.use_subjects_as_targets = use_subjects_as_targets
+  self.predict_delta_memory = subj_data_args.predict_delta_memory
 	self:__loadSubjData(filename)
   --self:__initSubjIDAndClassInfo()
   if not do_kfold_split then
@@ -39,6 +41,7 @@ function CVBySubjData:__init(...)
   else
     self:__kFoldCrossValAcrossSubjs(percent_in_fold, fold_number)
   end
+  assert(not self.predict_delta_memory or self.extras.train.delta_memory, 'Specified that we predict the delta memory, but the loaded data does not have delta_memory field in it.')
 end
 
 function CVBySubjData:__loadSubjData(filename)
@@ -480,6 +483,18 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
   self._test_labels = torch.gather(self._all_targets, 1, allTest)
   self._test_subjs = torch.gather(self._all_subj_idxs, 1, allTest) 
 
+  --finally re-order our extra_fields
+  self.extras = {}
+  self.extras.train = {}
+  self.extras.test = {}
+  for _,field_name in ipairs(self.extra_fields) do
+    self.extras.train[field_name] = torch.gather(self[field_name], 1, allTrain)
+    self.extras.test[field_name] = torch.gather(self[field_name], 1, allTest)
+    --clean up
+    self[field_name] = nil
+  end
+
+
   --and we no longer need our self._all_data OR self.dataframe
   self._all_data = nil
   self._all_targets = nil
@@ -586,11 +601,15 @@ function CVBySubjData:getTrainData()
 end
 
 function CVBySubjData:getTrainTargets()
-	if self.use_subjects_as_targets then
-		return {self._train_labels, self._train_subjs}
-	else
-		return self._train_labels
-	end
+  if self.predict_delta_memory then
+    return self.extras.train.delta_memory
+  else
+    if self.use_subjects_as_targets then
+      return {self._train_labels, self._train_subjs}
+    else
+      return self._train_labels
+    end
+  end
 end
 
 function CVBySubjData:getTestData()
@@ -598,11 +617,15 @@ function CVBySubjData:getTestData()
 end
 
 function CVBySubjData:getTestTargets()
-	if self.use_subjects_as_targets then
-		return {self._test_labels, self._test_subjs}
-	else
-		return self._test_labels
-	end
+  if self.predict_delta_memory then
+    return self.extras.test.delta_memory
+  else
+    if self.use_subjects_as_targets then
+      return {self._test_labels, self._test_subjs}
+    else
+      return self._test_labels
+    end
+  end
 end
 
 function CVBySubjData:getValidData()
@@ -610,11 +633,15 @@ function CVBySubjData:getValidData()
 end
 
 function CVBySubjData:getValidTargets()
-	if self.use_subjects_as_targets then
-		return {self._valid_labels, self._valid_subjs}
-	else
-		return self._valid_labels
-	end
+  if self.predict_delta_memory then
+    return self.extras.valid.delta_memory
+  else
+    if self.use_subjects_as_targets then
+      return {self._valid_labels, self._valid_subjs}
+    else
+      return self._valid_labels
+    end
+  end
 end
 
 function CVBySubjData:size(...)
