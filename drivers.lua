@@ -18,6 +18,9 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
 
   --training iteration hooks
   --------------------------
+  local trainConfMatrix = function(state)
+    sleep_eeg.hooks.confusionMatrix(state, 'train', subj_data.classnames, args.subj_data.predict_subj and 1 or nil )
+  end
   table.insert(args.training.trainingIterationHooks, trainConfMatrix)
 
   local validConfMatrix = function(state)
