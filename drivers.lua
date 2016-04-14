@@ -83,6 +83,10 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
   --misc
   table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.logWeightToUpdateNormRatio)
 
+  if args.training.iterationsDecreaseLR > 0 then
+    table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.decrease_learning_rate)
+  end
+
   --Training Completed Hooks
   --------------------------
   args.training.trainingCompleteHooks[1] = function(state)
@@ -158,6 +162,9 @@ M.setRegressionOptimizationHooks = function(state, subj_data, args, cmdOptions)
 
    --misc
   table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.logWeightToUpdateNormRatio)
+  if args.training.iterationsDecreaseLR > 0 then
+    table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.decrease_learning_rate)
+  end
 
   --Training Completed Hooks
   --------------------------
@@ -288,6 +295,8 @@ local initArgs = function()
   cmd:option('-log_period_in_hours', -1, 'how frequently we log things in periodicLogHooks. if <= 0, never call periodicLogHooks')
   cmd:option('-dont_save_network', false, 'do not save network periodically if this flag is specified')
   cmd:option('-show_test', false, 'only generate and save test accuracy if this is true')
+  cmd:option('-percent_decrease_LR', 97, 'number between 1 and 99 to decrease learning rate; only if -iterations_decrease_LR flag greater than 0')
+  cmd:option('-iterations_decrease_LR', 0, 'after how many iterations should we decrease our learning rate; 0 = constant learning rate')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-shuffle_data', false, 'whether or not we should shuffle trials e.g. for generating a random permutation ')
   cmd:option('-predict_delta_memory', false, 'whether or not we should predict change in memory instead of stimulus identity. not compatible with -predict_subj flag')
@@ -444,6 +453,8 @@ M.generalDriver = function()
   args.training.learningRate = cmdOptions.learning_rate
   args.training.maxTrainingIterations =  cmdOptions.max_iterations
   args.training.showTest = cmdOptions.show_test
+  args.training.iterationsDecreaseLR = cmdOptions.iterations_decrease_LR
+  args.training.percentDecreaseLR = cmdOptions.percent_decrease_LR
   args.training.trainingIterationHooks = {} -- populated below
   args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
   args.training.trainingCompleteHooks = {}

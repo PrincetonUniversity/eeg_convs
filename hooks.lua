@@ -24,6 +24,14 @@ M.validLoss = function(fullState)
   end
 end
 
+M.decrease_learning_rate = function(fullState)
+  if fullState.trainingIteration % fullState.args.training.iterationsDecreaseLR == 0 then
+    print(string.format('Decreasing learning rate %0.7f by %0.2f', fullState.optimSettings['learningRate'], fullState.args.training.percentDecreaseLR/100))
+    fullState.optimSettings['learningRate'] = fullState.optimSettings['learningRate'] * fullState.args.training.percentDecreaseLR/100
+    print(string.format('New learning rate: %0.7f', fullState.optimSettings['learningRate']))
+  end
+end
+
 --training iteration hook
 M.logWeightToUpdateNormRatio = function(fullState)
 	--only works with optim.adam_log or optim.sgd_log

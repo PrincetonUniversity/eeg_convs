@@ -122,11 +122,17 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
   local filename 
   if args.subj_data.shuffle_data then
     filename  = 'SHUFFLE' .. smoothString .. learningRateString .. '_' .. 
-      rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid .. '.th7'
+      rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid
   else
     filename = smoothString .. learningRateString .. '_' .. 
-	    rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid .. '.th7'
+	    rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid
   end
+
+  if args.training.iterationsDecreaseLR > 0 then
+    filename = filename .. '_' .. args.training.percentDecreaseLR .. 'lrDecayEvery' .. args.training.iterationsDecreaseLR
+  end
+
+  filename = filename ..'.th7'
 
 	local fullFilename = paths.concat(fullPath,filename)
 	print(fullFilename)
