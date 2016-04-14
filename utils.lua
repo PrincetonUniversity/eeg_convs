@@ -488,6 +488,10 @@ M.makeConfigName = function(args, cmdOptions)
     name = name .. 'Mini' .. cmdOptions.mini_batch_size
   end
 
+  if cmdOptions.spatial_chans then
+    name = name .. 'Spatial' .. cmdOptions.spatial_scale
+  end
+
   if cmdOptions.cuda then
 	  name = name .. 'Cuda'
   end
@@ -527,6 +531,10 @@ M.getDataFilenameFromArgs = function(args)
     fileNameRoot = fileNameRoot:gsub('cuelocked','cuelocked_I')
   end
 
+  if args.subj_data.spatial_chans then
+    fileNameRoot = fileNameRoot .. '_spatial' .. args.subj_data.spatial_scale
+  end
+
   if args.float_precision then
 	  fileNameRoot = fileNameRoot .. 'Single'
   end
@@ -534,13 +542,14 @@ M.getDataFilenameFromArgs = function(args)
 
   if args.subj_data.sim_type > 0 then
     if args.subj_data.sim_type == 1 or args.subj_data.sim_type == 2 then
-      fileName = './torch_exports/' .. fileNameRoot .. '_sim' ..  args.subj_data.sim_type .. '.mat'
+      fileNameRoot = fileNameRoot .. '_sim' ..  args.subj_data.sim_type 
     else
       error('Unknown or unimplemented simulated data type.  Only valid values are sim_type = 1 and sim_type == 2, sim_type == 3 yet to be implemented')
     end
-  else
-    fileName = './torch_exports/' .. fileNameRoot .. '.mat'
   end
+
+
+  fileName = './torch_exports/' .. fileNameRoot .. '.mat'
 
   return fileName
 end

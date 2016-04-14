@@ -35,7 +35,7 @@ function CVBySubjData:__init(...)
 	self.use_subjects_as_targets = use_subjects_as_targets
   self.predict_delta_memory = subj_data_args.predict_delta_memory
   self.shuffle_data = subj_data_args.shuffle_data
-	self:__loadSubjData(filename)
+	self:__loadSubjData(filename, subj_data_args)
   --self:__initSubjIDAndClassInfo()
   if not do_kfold_split then
     self:__splitDataAcrossSubjs(percent_valid, percent_train)
@@ -45,7 +45,7 @@ function CVBySubjData:__init(...)
   assert(not self.predict_delta_memory or self.extras.train.delta_memory, 'Specified that we predict the delta memory, but the loaded data does not have delta_memory field in it.')
 end
 
-function CVBySubjData:__loadSubjData(filename)
+function CVBySubjData:__loadSubjData(filename, subj_data_args)
 
 	--[[
 	currently this loads the following fields into loadedData:
@@ -77,6 +77,25 @@ function CVBySubjData:__loadSubjData(filename)
 	self._all_targets = torch.squeeze(targets) --remove singleton dimension
 	self.dimensions = loadedData['dimensions']
   self.classnames = loadedData['conds']
+
+  -- permute dimensions if our data is spatial because spatial conv modules expects
+  -- last two dimensions to be "width" and "height", ultimately we want:
+  -- trials x timepoints x 
+  if subj_data_args.spatial_chans then
+    --this is only for ERP data, we'd have to change this if we were dealing with frequency data
+    self._all_data = torch.permute(self._all_data,1,4,2,3)
+  end
+
+  if subj_data_args.volumetric_conv then
+    --this is only for ERP data, we'd have to change this if we were dealing with frequency data
+    self._all_data = torch.permute(self._all_data,1,4,2,3)
+    local trials = self._all_data:size(1)
+    local times = self._all_data:size(2)
+    local width = self._all_data:size(3)
+    local height = self._all_data:size(4)
+    --volumetric conv requires: # input planes, # times, widths, heights
+    self._all_data = torch.view(self._all_data,trials, 1, times, width, height)
+  end
 
     --we're going to convert subject_ids into indices so that we can use those 
 	--as labels

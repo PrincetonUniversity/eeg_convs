@@ -35,6 +35,8 @@ local initArgs = function()
   cmd:option('-ms', 20, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
   cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
+  cmd:option('-spatial_chans', false, 'if true, load data where channels are laid out in a 2d spatial arrangement; otherwise, channels are represented by their channel number in an arbitrary order')
+  cmd:option('-spatial_scale', 10, "if -spatial_chans set, what's the scale (in arbitrary units) of the 2D grid channels live on. 10 = 17x17 grid, smaller number gives more resolution")
   cmd:option('-min_presentations', -1, 'number of min presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:text()
@@ -118,6 +120,8 @@ M.run = function()
   args.subj_data.ERP_I = cmdOptions.ERP_I
   args.subj_data.min_presentations = cmdOptions.min_presentations
   args.subj_data.max_presentations = cmdOptions.max_presentations
+  args.subj_data.spatial_chans = cmdOptions.spatial_chans
+  args.subj_data.spatial_scale = cmdOptions.spatial_scale
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
   end
@@ -142,13 +146,14 @@ M.run = function()
   --values that get loaded by subj_data
   local subj_data 
   if args.subj_data.run_single_subj then
-    subj_data = sleep_eeg.SingleSubjData(args.subj_data.filename,
-      args.subj_data.subj_idx, args.subj_data.percent_valid, 
-      args.subj_data.percent_train)
+    subj_data = sleep_eeg.SingleSubjData({filename = args.subj_data.filename, 
+      do_kfold_split = args.subj_data.do_split_loso, percent_valid = args.subj_data.percent_valid, 
+	  percent_train = args.subj_data.percent_train, subj_data_args = args.subj_data})
   else
-    subj_data = sleep_eeg.CVBySubjData(args.subj_data.filename, 
-      args.subj_data.do_split_loso, args.subj_data.percent_valid, 
-	  args.subj_data.percent_train, args.subj_data.predict_subj)
+    subj_data = sleep_eeg.CVBySubjData({filename = args.subj_data.filename, 
+      do_kfold_split = args.subj_data.do_split_loso, percent_valid = args.subj_data.percent_valid, 
+	  percent_train = args.subj_data.percent_train, use_subjects_as_targets = args.subj_data.predict_subj, 
+    subj_data_args = args.subj_data})
   end
   print('Loaded data from: ' .. sleep_eeg.utils.fileToURI(args.subj_data.filename))
 

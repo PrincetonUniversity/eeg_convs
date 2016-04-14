@@ -273,7 +273,7 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv", "rnn"')
+  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv", "rnn", "deep_max_spatial_conv"')
   cmd:option('-rnn_type', 'vanilla', 'valid values = "vanilla" for vanilla rnn with tanh nonlinearity, or "lstm" for lstm, only applicable if -network_type = "rnn"')
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
@@ -291,6 +291,8 @@ local initArgs = function()
   cmd:option('-weight_loss_function', false, 'whether or not we should weight training examples inversely proportional to their image presentation number (works for sleep only) ')
   cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
   cmd:option('-ms', 20, 'how many ms per timebins for data in the temporal domain; currently only supports 4 and 20')
+  cmd:option('-spatial_chans', false, 'if true, load data where channels are laid out in a 2d spatial arrangement; otherwise, channels are represented by their channel number in an arbitrary order')
+  cmd:option('-spatial_scale', 10, "if -spatial_chans set, what's the scale (in arbitrary units) of the 2D grid channels live on. 10 = 17x17 grid, smaller number gives more resolution")
   cmd:option('-ERP_diff', false, 'whether or not to use ERP_diff, only supported for sleep ERP currently')
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
   cmd:option('-min_presentations', -1, 'number of min presentations, only valid for sleep data; -1 will use all cue presentations')
@@ -359,6 +361,9 @@ M.generalDriver = function()
   args.subj_data.ERP_I = cmdOptions.ERP_I
   args.subj_data.min_presentations = cmdOptions.min_presentations
   args.subj_data.max_presentations = cmdOptions.max_presentations
+  args.subj_data.spatial_chans = cmdOptions.spatial_chans
+  args.subj_data.spatial_scale = cmdOptions.spatial_scale
+
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
   end
@@ -496,6 +501,12 @@ M.generalDriver = function()
       args.network.numHiddenLayers, state.data.num_classes, 
 		  args.network.dropout_prob, args.subj_data.predict_subj, 
 		  state.data.num_subjects,args.network)
+    elseif cmdOptions.network_type == 'deep_max_spatial_conv' then 
+      network, criterion = sleep_eeg.models.createSpatialConvClassificationNetwork( 
+        state.data:getTrainData(), args.network.numHiddenUnits, 
+        args.network.numHiddenLayers, state.data.num_classes, 
+        args.network.dropout_prob, args.subj_data.predict_subj, 
+        state.data.num_subjects, args.network)
     elseif cmdOptions.network_type == 'max_temp_conv' then 
       network, criterion = sleep_eeg.models.createMaxTempConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
@@ -515,6 +526,7 @@ M.generalDriver = function()
         args.network.numHiddenLayers, state.data.num_classes, 
         args.network.dropout_prob, args.subj_data.predict_subj, 
         state.data.num_subjects,args.network)
+
     end
     print('making network finished...')
     state:add('network',network, true)
