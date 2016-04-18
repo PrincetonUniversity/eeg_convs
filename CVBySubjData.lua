@@ -87,14 +87,15 @@ function CVBySubjData:__loadSubjData(filename, subj_data_args)
   end
 
   if subj_data_args.volumetric_conv then
+    assert(subj_data_args.spatial_chans,'Can only use volumetric conv if spatial chans is true')
     --this is only for ERP data, we'd have to change this if we were dealing with frequency data
-    self._all_data = torch.permute(self._all_data,1,4,2,3)
+    --self._all_data = torch.permute(self._all_data,1,4,2,3)
     local trials = self._all_data:size(1)
     local times = self._all_data:size(2)
     local width = self._all_data:size(3)
     local height = self._all_data:size(4)
     --volumetric conv requires: # input planes, # times, widths, heights
-    self._all_data = torch.view(self._all_data,trials, 1, times, width, height)
+    self._all_data = torch.view(self._all_data:contiguous(),trials, 1, times, width, height)
   end
 
     --we're going to convert subject_ids into indices so that we can use those 

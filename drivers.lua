@@ -283,7 +283,7 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv", "rnn", "deep_max_spatial_conv"')
+  cmd:option('-network_type', 'deep_max_temp_conv', 'network type to use, valid values = "fully_connected", "max_channel_conv" and , "deep_max_temp_conv", "rnn", "deep_max_spatial_conv", or "volumetric_conv"')
   cmd:option('-rnn_type', 'vanilla', 'valid values = "vanilla" for vanilla rnn with tanh nonlinearity, or "lstm" for lstm, only applicable if -network_type = "rnn"')
   cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
@@ -323,6 +323,12 @@ local initArgs = function()
   cmd:option('-conv_strides', '1', 'comma-separated list of conv strides, use -1 to disable for a given layer')
   cmd:option('-max_pool_strides', '2', 'comma-separated list of max-pool strides, use -1 to disable for given layer')
   cmd:option('-num_conv_filters', '128', 'comma-separated list of num filters per conv layer')
+  --this is for spatiotemporal convolutions: regular deep conv v2 parameters are used for the width and height of the spatial conv, and these params are
+  --used for
+  cmd:option('-temp_kernel_widths', '1', 'comma-separated list of TEMPORAL convolution kernel width for volumetric_conv, use -1 to disable for a given layer')
+  cmd:option('-temp_max_pool_widths', '2', 'comma-separated list of TEMPORAL max-pool widths, use -1 to disable for a given layer, 0 to max over entire input')
+  cmd:option('-temp_conv_strides', '1', 'comma-separated list of TEMPORAL conv strides, use -1 to disable for a given layer')
+  cmd:option('-temp_max_pool_strides', '2', 'comma-separated list of TEMPORAL max-pool strides, use -1 to disable for given layer')
  
   cmd:text()
   opt = cmd:parse(arg)
@@ -375,6 +381,7 @@ M.generalDriver = function()
   args.subj_data.max_presentations = cmdOptions.max_presentations
   args.subj_data.spatial_chans = cmdOptions.spatial_chans
   args.subj_data.spatial_scale = cmdOptions.spatial_scale
+  args.subj_data.volumetric_conv = string.match(cmdOptions.network_type,'volumetric_conv') ~= nil
 
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
@@ -437,13 +444,19 @@ M.generalDriver = function()
     args.network.convString = 'kW' .. cmdOptions.kernel_widths .. 'dW' ..
       cmdOptions.conv_strides .. 'pW' .. cmdOptions.max_pool_widths .. 'dPW' ..
 	  cmdOptions.max_pool_strides .. 'numFilts' .. cmdOptions.num_conv_filters
+    if string.match(args.network.network_type, 'volumetric_conv') then
+      args.network.convString = args.network.convString .. 'kW' .. cmdOptions.temp_kernel_widths .. 'dW' ..
+      cmdOptions.temp_conv_strides .. 'pW' .. cmdOptions.temp_max_pool_widths .. 'dPW' .. cmdOptions.temp_max_pool_strides 
+    end
   else
     args.network.convString = ''
   end
 
   args.network.kernel_widths, args.network.conv_strides, 
     args.network.max_pool_widths, args.network.max_pool_strides,
-	args.network.num_conv_filters = sleep_eeg.utils.extractAndCheckConvOptions(cmdOptions)
+	  args.network.num_conv_filters,  args.network.temp_kernel_widths, 
+    args.network.temp_conv_strides, args.network.temp_max_pool_widths, 
+    args.network.temp_max_pool_strides = sleep_eeg.utils.extractAndCheckConvOptions(cmdOptions)
 
   --training args, used by sleep_eeg.drivers.train()
   args.training = {}
@@ -517,6 +530,12 @@ M.generalDriver = function()
 		  state.data.num_subjects,args.network)
     elseif cmdOptions.network_type == 'deep_max_spatial_conv' then 
       network, criterion = sleep_eeg.models.createSpatialConvClassificationNetwork( 
+        state.data:getTrainData(), args.network.numHiddenUnits, 
+        args.network.numHiddenLayers, state.data.num_classes, 
+        args.network.dropout_prob, args.subj_data.predict_subj, 
+        state.data.num_subjects, args.network)
+    elseif cmdOptions.network_type == 'volumetric_conv' then 
+      network, criterion = sleep_eeg.models.createVolumetricConvClassificationNetwork( 
         state.data:getTrainData(), args.network.numHiddenUnits, 
         args.network.numHiddenLayers, state.data.num_classes, 
         args.network.dropout_prob, args.subj_data.predict_subj, 

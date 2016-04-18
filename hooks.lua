@@ -6,8 +6,28 @@ M.validLoss = function(fullState)
 	if not fullState.validSetLoss then
 		fullState:add('validSetLoss', torch.FloatTensor(fullState.args.training.maxTrainingIterations):fill(-1.0), true)
 	end
-	fullState.validModelOut = fullState.network:forward(fullState.data:getValidData())
-	fullState.validSetLoss[fullState.trainingIteration] = fullState.criterion:forward(fullState.validModelOut, fullState.data:getValidTargets())
+
+
+  local data = fullState.data:getValidData()
+  local targets = fullState.data:getValidTargets()
+  local numExamples = data:size(1)
+  local numMiniBatches = sleep_eeg.utils.getNumMiniBatches(numExamples, fullState.args.miniBatchSize)
+
+  fullState.validSetLoss[fullState.trainingIteration] = 0
+
+  for miniBatchIdx = 1, numMiniBatches do
+
+    local miniBatchTrials = sleep_eeg.utils.getMiniBatchTrials(torch.range(1,numExamples):long(), miniBatchIdx, fullState.args.miniBatchSize)
+    local miniBatchWeight = miniBatchTrials:numel()/numExamples 
+
+    local modelOut = fullState.network:forward(data:index(1,miniBatchTrials))
+    local batch_targets = sleep_eeg.utils.indexIntoTensorOrTableOfTensors(targets,1,miniBatchTrials)
+
+    fullState.validSetLoss[fullState.trainingIteration] = fullState.validSetLoss[fullState.trainingIteration] +  fullState.criterion:forward(modelOut, batch_targets) * miniBatchWeight
+
+  end
+
+  fullState.validSetLoss[fullState.trainingIteration] = fullState.validSetLoss[fullState.trainingIteration]/numMiniBatches
 
 	if fullState.trainingIteration % M.OUTPUT_EVERY_X_ITERATIONS == 0 then
     print('Validation Loss: ' .. fullState.validSetLoss[fullState.trainingIteration])

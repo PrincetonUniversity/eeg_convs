@@ -19,7 +19,9 @@ local initArgs = function()
   cmd:option('-learning_rate', 1e-5, 'learning rate for optimizer')
   cmd:option('-max_iterations', 20000, 'max number of iterations to optimize for (can still terminate early)')
   cmd:option('-early_termination', -1, '-1 = no early termination, values between 0 and 1 will terminate optimization if training and validation classification accuracy exceed this value')
-  cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected"') cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
+  cmd:option('-network_type', 'max_temp_conv', 'network type to use, valid values = "max_temp_conv", "no_max_temp_conv", and "fully_connected"') 
+  cmd:option('-dropout_prob', -1, 'Probability of input dropout.')
+  cmd:option('-volumetric_conv', false, 'Whether or not data shuld be prepared for a volumetric convolution')
   cmd:option('-num_hidden_mult', 1, 'Number of hidden units specified as a multiple of the number of output units e.g. "2" would yield numHiddenUnits = 2 * numOutputUnits')
   cmd:option('-num_hidden_layers', 1, 'Number of weights between layers, always at least 1 (input --> output), greater than 1 creates hidden layers')
   cmd:option('-config_name', '', 'what we want to call this configuration of arguments; dictates the name of the folder we save data to. leaving this empty will generate directory name based on arguments passed.')
@@ -122,6 +124,7 @@ M.run = function()
   args.subj_data.max_presentations = cmdOptions.max_presentations
   args.subj_data.spatial_chans = cmdOptions.spatial_chans
   args.subj_data.spatial_scale = cmdOptions.spatial_scale
+  args.subj_data.volumetric_conv = cmdOptions.volumetric_conv
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')
   end

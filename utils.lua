@@ -390,26 +390,59 @@ end
 
 M.extractAndCheckConvOptions = function(cmdOptions)
 
+  local isVolumetric = false
+  if string.match(cmdOptions.network_type, 'volumetric_conv') then
+    isVolumetric = true
+  end
   local kernel_widths = string.split(cmdOptions.kernel_widths,',')
   local conv_strides = string.split(cmdOptions.conv_strides,',')
   local max_pool_widths = string.split(cmdOptions.max_pool_widths,',')
   local max_pool_strides = string.split(cmdOptions.max_pool_strides,',')
   local num_conv_filters = string.split(cmdOptions.num_conv_filters,',')
 
-  assert(#kernel_widths == #conv_strides and #kernel_widths == #max_pool_widths
-    and #kernel_widths == #max_pool_strides, [[Unequal number of conv/max_pool 
-	parameters supplied. If we have 3 kernel_widths (meaning 3 conv layers), then
-	 we need to have 3 conv_strides, 3 max_pool_widths and 3 max_pool strides. 
-	 and 3 num_conv_filters.]])
+  local temp_kernel_widths
+  local temp_conv_strides
+  local temp_max_pool_widths
+  local temp_max_pool_strides
+  if isVolumetric then
+    temp_kernel_widths = string.split(cmdOptions.temp_kernel_widths,',')
+    temp_conv_strides = string.split(cmdOptions.temp_conv_strides,',')
+    temp_max_pool_widths = string.split(cmdOptions.temp_max_pool_widths,',')
+    temp_max_pool_strides = string.split(cmdOptions.temp_max_pool_strides,',')
+  end
+
+
+  if isVolumetric then
+    assert(#kernel_widths == #conv_strides and #kernel_widths == #max_pool_widths
+      and #kernel_widths == #max_pool_strides and #kernel_widths == #temp_kernel_widths
+      and #kernel_widths == #temp_max_pool_strides and #kernel_widths == #temp_conv_strides
+      and #kernel_widths == #temp_max_pool_widths, [[Unequal number of conv/max_pool 
+          parameters supplied. If we have 3 kernel_widths (meaning 3 conv layers), then
+          we need to have 3 conv_strides, 3 max_pool_widths and 3 max_pool strides, 
+          3 temp kernel widths, and 3 num_conv_filters.]])
+  else
+    assert(#kernel_widths == #conv_strides and #kernel_widths == #max_pool_widths
+      and #kernel_widths == #max_pool_strides, [[Unequal number of conv/max_pool 
+          parameters supplied. If we have 3 kernel_widths (meaning 3 conv layers), then
+          we need to have 3 conv_strides, 3 max_pool_widths and 3 max_pool strides. 
+          and 3 num_conv_filters.]])
+  end
+
   for idx = 1, #kernel_widths do
-	  kernel_widths[idx] = tonumber(kernel_widths[idx])
-	  conv_strides[idx] = tonumber(conv_strides[idx])
-	  max_pool_widths[idx] = tonumber(max_pool_widths[idx])
-	  max_pool_strides[idx] = tonumber(max_pool_strides[idx])
-	  num_conv_filters[idx] = tonumber(num_conv_filters[idx])
+    kernel_widths[idx] = tonumber(kernel_widths[idx])
+    conv_strides[idx] = tonumber(conv_strides[idx])
+    max_pool_widths[idx] = tonumber(max_pool_widths[idx])
+    max_pool_strides[idx] = tonumber(max_pool_strides[idx])
+    num_conv_filters[idx] = tonumber(num_conv_filters[idx])
+    if isVolumetric then
+      temp_kernel_widths[idx] = tonumber(temp_kernel_widths[idx])
+      temp_conv_strides[idx] = tonumber(temp_conv_strides[idx])
+      temp_max_pool_widths[idx] = tonumber(temp_max_pool_widths[idx])
+      temp_max_pool_strides[idx] = tonumber(temp_max_pool_strides[idx])
+    end
   end
   return kernel_widths, conv_strides, max_pool_widths, max_pool_strides,
-    num_conv_filters
+    num_conv_filters, temp_kernel_widths, temp_conv_strides, temp_max_pool_widths, temp_max_pool_strides
 end
 
 M.makeConfigName = function(args, cmdOptions)
