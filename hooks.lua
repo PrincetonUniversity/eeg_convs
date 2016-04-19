@@ -285,9 +285,11 @@ M.plotForRNGSweep = function(fullState)
 	local lossPlots = {}
 
   M.__plotSymbol(lossPlots, 'Train Loss', fullState.trainSetLoss[{{1,iteration}}])
-  for k,v in pairs(fullState.plotting.losses) do
-    local keyName = v
-    M.__plotSymbol(lossPlots, k, fullState[keyName][{{1,iteration}}])
+  if fullState.plotting.losses then
+    for k,v in pairs(fullState.plotting.losses) do
+      local keyName = v
+      M.__plotSymbol(lossPlots, k, fullState[keyName][{{1,iteration}}])
+    end
   end
 
   local newSaveFile, saveFile = '', ''

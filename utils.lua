@@ -121,11 +121,14 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	--build filename
   local filename 
   if args.subj_data.shuffle_data then
-    filename  = 'SHUFFLE' .. smoothString .. learningRateString .. '_' .. 
-      rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid
+    filename  = 'SHUFFLE' 
   else
-    filename = smoothString .. learningRateString .. '_' .. 
-	    rngSeedString .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid
+    filename = ''
+  end
+  filename = filename .. smoothString .. learningRateString .. '_' ..  rngSeedString 
+
+  if not args.subj_data.do_kfold_split then --not applicable
+    filename = filename .. 'train' .. args.subj_data.percent_train .. 'valid' .. args.subj_data.percent_valid
   end
 
   if args.training.iterationsDecreaseLR > 0 then

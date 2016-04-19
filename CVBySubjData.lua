@@ -13,7 +13,7 @@ CVBySubjData.PERCENT_TEST = 15
 
 function CVBySubjData:__init(...)
   local args, filename, do_kfold_split, percent_valid, percent_train,
-  use_subjects_as_targets, percent_in_fold, fold_number, subj_data_args = dok.unpack(
+  use_subjects_as_targets, num_folds, fold_number, subj_data_args = dok.unpack(
     {...},
     'CVBySubjData',
     'Loads subject data and splits it into training, validation, and test sets',
@@ -25,7 +25,7 @@ function CVBySubjData:__init(...)
 		{arg='percent_valid', type = 'number', help='Percent e.g. 15 to use for validation', req=false},
 		{arg='percent_train', type ='number',help='Percent e.g. 50 to use for training', req = false},
 		{arg='use_subjects_as_targets', type ='boolean', help='whether or not to return targets as {class, subjects}', req = true},
-		{arg='percent_in_fold', type ='boolean', help='percent of data in each fold, only required if do_kfold_split is true', req = false},
+		{arg='num_folds', type ='number', help='percent of data in each fold, only required if do_kfold_split is true', req = false},
 		{arg='fold_number', type ='boolean', help='which fold to test on, only required if do_kfold_split is true', req = false},
     {arg='subj_data_args', type='table', help='the table of all subj_data_args args', req = true}
    )
@@ -40,7 +40,7 @@ function CVBySubjData:__init(...)
   if not do_kfold_split then
     self:__splitDataAcrossSubjs(percent_valid, percent_train)
   else
-    self:__kFoldCrossValAcrossSubjs(percent_in_fold, fold_number)
+    self:__kFoldCrossValAcrossSubjs(num_folds, fold_number)
   end
   assert(not self.predict_delta_memory or self.extras.train.delta_memory, 'Specified that we predict the delta memory, but the loaded data does not have delta_memory field in it.')
 end
@@ -168,13 +168,17 @@ function CVBySubjData:cuda()
 	require 'cutorch'
 	require 'cunn'
 	self._train_data  = self._train_data:cuda()
-	self._valid_data = self._valid_data:cuda()
+  if self._valid_data then
+    self._valid_data = self._valid_data:cuda()
+  end
 	self._test_data = self._test_data:cuda()
 end
 
 function CVBySubjData:swapTemporalAndChannelDims()
 	self._train_data  = self._train_data:transpose(2,3)
-	self._valid_data = self._valid_data:transpose(2,3)
+  if self._valid_data then
+    self._valid_data = self._valid_data:transpose(2,3)
+  end
 	self._test_data = self._test_data:transpose(2,3)
 end
 
@@ -394,6 +398,37 @@ function CVBySubjData:__checkTrainValidTestSplit(train, valid, test)
   print(dupesPerSet)
 end
 
+function CVBySubjData:__checkTrainTestSplit(train, test)
+  local totalNumTrials = self._all_data:size(1)
+  local filledInTrials = torch.LongTensor(totalNumTrials):zero()
+  local totalDuplicates = 0
+  local dupesPerSet = {0,0}
+  local function checkTrials(trials, name, set_number)
+    for t = 1, trials:numel() do
+      local trial = trials[t]
+      if filledInTrials[trial] ~= 0 then
+        print('duplicate detected: ', trial, ' in ' .. name, 'already inserted for ', filledInTrials[trial])
+        totalDuplicates = totalDuplicates + 1
+        dupesPerSet[set_number] = dupesPerSet[set_number] + 1
+      else
+          filledInTrials[trial] = set_number
+      end
+    end
+  end
+
+  checkTrials(train, 'train',1)
+  checkTrials(test, 'test',2)
+  --finally check that they're all non-zero
+  local nonMissedTrials = filledInTrials:nonzero()
+  local totalTrialsMissed = totalNumTrials - nonMissedTrials:numel()
+  print('Missed ', totalTrialsMissed, ' trials')
+  print('Non-unique Duplicated trials', totalDuplicates)
+  print('Duplicated trial counts for train, test:')
+  dupesPerSet[1] = dupesPerSet[1]/train:numel()
+  dupesPerSet[2] = dupesPerSet[2]/test:numel()
+  print(dupesPerSet)
+end
+
 function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
 	local args, num_folds, fold_idx  = dok.unpack(
 		{...},
@@ -508,6 +543,7 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
   torch.setRNGState(regularRNG)
   local allTrain = foldTrainIdxs[fold_idx]
   local allTest = foldTestIdxs[fold_idx]
+  self:__checkTrainTestSplit(allTrain, allTest)
 
   --this code lets us shuffle our data: either we use the REAL indices corresponding
   --to the train/valid/test trials when we select our labels/subject_ids/extra fields,
