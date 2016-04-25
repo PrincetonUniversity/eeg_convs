@@ -340,7 +340,9 @@ local initArgs = function()
   cmd:option('-temp_max_pool_widths', '2', 'comma-separated list of TEMPORAL max-pool widths, use -1 to disable for a given layer, 0 to max over entire input')
   cmd:option('-temp_conv_strides', '1', 'comma-separated list of TEMPORAL conv strides, use -1 to disable for a given layer')
   cmd:option('-temp_max_pool_strides', '2', 'comma-separated list of TEMPORAL max-pool strides, use -1 to disable for given layer')
- 
+  cmd:option('-l1_penalty', 0, 'L1 penalty')
+  cmd:option('-l2_penalty', 0, 'L2 penalty')
+
   cmd:text()
   opt = cmd:parse(arg)
   opt.float_precision = not opt.double_precision 
@@ -483,6 +485,8 @@ M.generalDriver = function()
   args.training.showTest = cmdOptions.show_test
   args.training.iterationsDecreaseLR = cmdOptions.iterations_decrease_LR
   args.training.percentDecreaseLR = cmdOptions.percent_decrease_LR
+  args.training.l1_penalty = cmdOptions.l1_penalty
+  args.training.l2_penalty = cmdOptions.l2_penalty
   args.training.trainingIterationHooks = {} -- populated below
   args.training.earlyTerminationFn = nil --populated below just put this here so that, all args are easy to see
   args.training.trainingCompleteHooks = {}

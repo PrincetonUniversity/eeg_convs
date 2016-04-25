@@ -6,3 +6,4 @@ job_logs/
 *.swp
 tags
 th.o*
+*.sh.*

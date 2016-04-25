@@ -470,6 +470,13 @@ M.makeConfigName = function(args, cmdOptions)
   if cmdOptions.dropout_prob > 0 then
   	name = name .. 'Drop' .. tostring(cmdOptions.dropout_prob)
   end
+  if cmdOptions.l1_penalty > 0 then
+  	name = name .. 'L1_' .. tostring(cmdOptions.l1_penalty)
+  end
+  if cmdOptions.l2_penalty > 0 then
+  	name = name .. 'L2_' .. tostring(cmdOptions.l2_penalty)
+  end
+
   --simulated data indicator
   if cmdOptions.simulated >= 0 then
     simString = 'Sim' .. tostring(cmdOptions.simulated)

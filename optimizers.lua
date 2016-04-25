@@ -87,7 +87,17 @@ M.performTrainIteration = function(fullState)
     --actually update our network
     fullState.network:backward(batchTrainInputs, criterionGradInput)
 
-    fullState.optimizer(function() return fullState.trainSetLoss, fullState.gradParams end,
+    --add derivative of l1 and l2 losses to gradParams before actually updating our parameters in the direction of steepest descent
+    if fullState.args.training.l1_penalty > 0 then
+      fullState.gradParams:add(torch.sign(fullState.params):mul(fullState.args.training.l1_penalty))
+    end
+    if fullState.args.training.l2_penalty > 0 then
+      fullState.gradParams:add(fullState.params:clone():mul(fullState.args.training.l2_penalty))
+    end
+
+    --technically, we really should be adding the l1 and l2 costs to the train set loss here, but i'm not doing that because it's not used in either the
+    --SGD or ADAM optimizers
+    fullState.optimizer(function() return fullState.trainSetLoss[fullState.trainingIteration], fullState.gradParams end,
       fullState.params, fullState.optimSettings)
     
     --todo: here we should calculate any classification errors before we clear out the outputs for the next minibatch so that we can save computation
