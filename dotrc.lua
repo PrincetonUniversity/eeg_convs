@@ -8,16 +8,19 @@ require 'paths'
 local export_folder_name = 'sleep_eeg_v2'
 dotrc.has_debugger = true --most of my computers have fb.debugger installed
 if os.getenv('USER') == 'elpiloto' then
-	dotrc.save_dir = paths.concat(paths.cwd(),'output/')
+  dotrc.save_dir = paths.concat(paths.cwd(),'output/')
 elseif os.getenv('USER') == 'lpiloto' then
   if os.getenv('HOME') == '/Users/lpiloto' then
     dotrc.has_debugger = false
     dotrc.save_dir = '/Users/lpiloto/Dropbox/code/torch/sleep_eeg_v2/output/'
   elseif os.getenv('HOME') == '/usr/people/lpiloto' then --spock
     dotrc.has_debugger = false
-	dotrc.save_dir = paths.concat(paths.cwd(),'output/')
-  else -- we're on della 
-	  dotrc.save_dir = '/tigress/lpiloto/outputs/'
+    dotrc.save_dir = paths.concat(paths.cwd(),'output/')
+  else -- we're on della OR tiger
+    dotrc.save_dir = '/tigress/lpiloto/outputs/'
+    if string.match(os.getenv('HOSTNAME'), 'tiger') then --we're on tiger
+      dotrc.has_debugger = false;
+    end
   end
 end
 --now we make something specific for this project
