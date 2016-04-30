@@ -342,6 +342,7 @@ local initArgs = function()
   cmd:option('-temp_max_pool_strides', '2', 'comma-separated list of TEMPORAL max-pool strides, use -1 to disable for given layer')
   cmd:option('-l1_penalty', 0, 'L1 penalty')
   cmd:option('-l2_penalty', 0, 'L2 penalty')
+  cmd:option('-rng_seed', 1, 'rng seed')
 
   cmd:text()
   opt = cmd:parse(arg)
