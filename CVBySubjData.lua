@@ -596,8 +596,13 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
   self.dataframe = nil
 
   --and now let's do our normalization
-  self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data)
-  sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
+  if self._do_pca then
+    self._train_data, self._pcaTransformFn, self._mean, self._std = sleep_eeg.utils.normalizeAndPCAData(self._train_data, self._percent_pca_variance_to_keep,nil,nil, nil)
+    self._test_data = sleep_eeg.utils.normalizeAndPCAData(self._test_data, nil, self._mean, self._std, self._pcaTransformFn)
+  else
+    self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data,nil,nil,self._do_pca)
+    sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
+  end
 
   self._num_folds =  num_folds
   self._fold_num = fold_idx
