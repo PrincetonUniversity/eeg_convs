@@ -275,6 +275,8 @@ local initArgs = function()
   cmd:option('-simulated', -1, '-1 = no sim data, 1 = basic, 2 = no signal, 3 = basic + noise (not implemented yet)')
   cmd:option('-percent_train', 65, 'percent of data to use for training')
   cmd:option('-cuda', false, 'use cuda')
+  cmd:option('-pca', false, 'whether or not to do PCA on our dataset')
+  cmd:option('-percent_pca_variance_to_keep',1, 'how much of the variance our pca reduction should keep, only relevant if -pda flag specified')
   cmd:option('-percent_valid', 20, 'percent of data to use for validation')
   cmd:option('-loso',false, 'leave-one-subject-out validation? NOTE: currently not implemented')
   cmd:option('-run_single_subj',false, 'run within subject analysis')
@@ -386,6 +388,8 @@ M.generalDriver = function()
   args.subj_data.spatial_chans = cmdOptions.spatial_chans
   args.subj_data.spatial_scale = cmdOptions.spatial_scale
   args.subj_data.volumetric_conv = string.match(cmdOptions.network_type,'volumetric_conv') ~= nil
+  args.subj_data.pca = cmdOptions.pca
+  args.subj_data.percent_pca_variance_to_keep = cmdOptions.percent_pca_variance_to_keep
 
   if args.subj_data.wake and args.subj_data.wake_test then
 	error('both -wake and -wake_test flags specified, but highlander (there can only be one)')

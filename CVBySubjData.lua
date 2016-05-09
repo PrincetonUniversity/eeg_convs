@@ -35,6 +35,8 @@ function CVBySubjData:__init(...)
 	self.use_subjects_as_targets = use_subjects_as_targets
   self.predict_delta_memory = subj_data_args.predict_delta_memory
   self.shuffle_data = subj_data_args.shuffle_data
+  self._do_pca = subj_data_args.pca
+  self._percent_pca_variance_to_keep = subj_data_args.percent_pca_variance_to_keep
 	self:__loadSubjData(filename, subj_data_args)
   --self:__initSubjIDAndClassInfo()
   if not do_kfold_split then
@@ -342,9 +344,15 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
   self.dataframe = nil
 
   --and now let's do our normalization
-  self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data)
-  sleep_eeg.utils.normalizeData(self._valid_data, self._mean, self._std)
-  sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
+  if self._do_pca then
+    self._train_data, self._pcaTransformFn, self._mean, self._std = sleep_eeg.utils.normalizeAndPCAData(self._train_data, self._percent_pca_variance_to_keep,nil,nil, nil)
+    self._valid_data = sleep_eeg.utils.normalizeAndPCAData(self._valid_data, nil, self._mean, self._std, self._pcaTransformFn)
+    self._test_data = sleep_eeg.utils.normalizeAndPCAData(self._test_data, nil, self._mean, self._std, self._pcaTransformFn)
+  else
+    self._mean, self._std = sleep_eeg.utils.normalizeData(self._train_data,nil,nil,self._do_pca)
+    sleep_eeg.utils.normalizeData(self._valid_data, self._mean, self._std)
+    sleep_eeg.utils.normalizeData(self._test_data, self._mean, self._std)
+  end
   
   self._subj_counts = subj_counts
   self._class_counts = class_counts

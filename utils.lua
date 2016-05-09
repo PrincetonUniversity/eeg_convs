@@ -25,18 +25,122 @@ end
 test_nilXOR()
 
 
-M.normalizeData = function(data,mean_, std_)
+--assumes data has already been mean-centered and normalized, and that examples are along first column
+M.makingOfOptimalPCATransformationsForGreatSuccesses = function(data, percent_variance_to_keep, num_pcs_to_keep_)
+  require 'unsup'
+  require 'gnuplot'
+
+  local timer = M.startTimer()
+  --we need our Tensors as matrices
+  data = M.flattenTensor(data)
+
+  local u,s,v = torch.svd(data,'S')
+
+  local variances = torch.cmul(s,s)
+  local cum_variance = torch.cumsum(variances)/variances:sum()
+
+  local num_pcs_to_keep, variance_captured
+  if percent_variance_to_keep == 1 then --sometimes we get numerical inaccuracies for this case, let's just treat it special
+    num_pcs_to_keep = variances:numel()
+    variance_captured = percent_variance_to_keep
+  else
+    --terse code explanation:
+    --we need the index of the FIRST cum_variance entry which contains at least percent_variance in it...
+    --construct a tensor of indices, index it with a logical tensor that says whether or not each cum_var
+    --element is greater than the min variance to keep, and then get the first index of that
+    num_pcs_to_keep = torch.range(1, variances:numel())[cum_variance:ge(percent_variance_to_keep)][1]
+    variance_captured = cum_variance[cum_variance:ge(percent_variance_to_keep)][1]
+  end
+
+  print(string.format('Keeping %d principal components to capture %0.2f of the variance: ', num_pcs_to_keep, variance_captured))
+
+  local transformationFn = function(t)
+    return torch.mm(M.flattenTensor(t),v[{{},{1,num_pcs_to_keep}}])
+  end
+
+  --can set this to false, and because it's global, will only test the first time, however,
+  --you must also change the torch.svd call to return all 'A' eigenvectors instead of just some 'S'
+  shouldNotTest = true 
+  if not shouldNotTest then
+    local v_inverse = torch.inverse(v)
+    local pc_data = torch.mm(M.flattenTensor(data),v)
+    local x_reconstructed = torch.mm(pc_data, v_inverse)
+    print('Average reconstruction error:', (x_reconstructed - data):sum()/data:numel())
+    _fbd.enter()
+    shouldNotTest = true 
+  end
+
+  M.endTimer(timer, 'finding principal components')
+  return transformationFn, num_pcs_to_keep
+end
+
+--assumes first dimension is examples, produces matrix where each row is an example
+M.flattenTensor = function(data)
+  local originalSize = data:size()
+  return data:view(originalSize[1],-1)
+end
+
+--we only divide by std if we're not applying PCA, otherwise
+M.normalizeData = function(data, mean_, std_)
   local numExamples = data:size(1)
   local std = std_ or data:std(1)
   local mean = mean_ or data:mean(1)
 
-  -- actually normalize here
+  --mean center 
   for i = 1, numExamples do
      data[i]:add(-mean)
      data[i]:cdiv(std)
   end
 
   return mean, std
+end
+
+M.startTimer = function()
+  return torch.tic()
+end
+
+M.endTimer = function(timer, title)
+  local durationMins = torch.toc(timer)/60
+  print(string.format('%s took %0.5f minutes', title, durationMins))
+end
+
+M.normalizeAndPCAData = function(data, percent_variance_to_keep, mean_, std_, transformFn_)
+  local origDataSize = data:size()
+  local numExamples = data:size(1)
+
+  --local mean = mean_ or data:mean(1)
+  local mean = data:mean(1)
+  local std = std_ or data:std(1)
+
+  --PCA needs mean-centered data
+  -- and we can whiten data, too
+  for i = 1, numExamples do
+    data[i]:add(-mean)
+    data[i]:cdiv(std)
+  end
+
+
+  local transformFn = transformFn_ or 
+    M.makingOfOptimalPCATransformationsForGreatSuccesses(data, percent_variance_to_keep)
+
+  data = transformFn(data)
+
+
+  --here we preserve the number of dimensions of the data, just because i haven't implemented models that
+  --are robust to the number of dimensions changing due to PCA
+  if #origDataSize:totable() > 2 then
+    local newDataSize = origDataSize:fill(1)
+    newDataSize[1] = data:size(1)
+    newDataSize[2] = data:size(2)
+    data = data:view(unpack(newDataSize:totable()))
+  end
+
+  return data, transformFn, mean, std
+ 
+end
+
+M.normalizeAndPCADataByTimepoint = function(data, timepoint_dim, mean_, std_, do_pca, eigenvectors_)
+  error('Not yet implemented')
 end
 
 
@@ -543,6 +647,10 @@ M.makeConfigName = function(args, cmdOptions)
 
   if cmdOptions.cuda then
 	  name = name .. 'Cuda'
+  end
+
+  if cmdOptions.pca then
+    name = name .. string.format('PCA%0.2f', cmdOptions.percent_pca_variance_to_keep)
   end
 
   return name
