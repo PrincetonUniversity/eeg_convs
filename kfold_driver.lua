@@ -122,11 +122,6 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
 
-  if args.agg_results >= 0 then
-    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
-    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
-  end
-
   --if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
 	  --and cmdOptions.num_hidden_mult == 1 then 
     --args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
@@ -201,11 +196,6 @@ M.setRegressionOptimizationHooks = function(state, subj_data, args, cmdOptions)
   --Periodic Logging Hooks
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
-
-  if args.agg_results >= 0 then
-    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
-    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
-  end
 
   if not cmdOptions.dont_save_network then
     table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveNetwork)

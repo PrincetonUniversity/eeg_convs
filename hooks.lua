@@ -318,7 +318,7 @@ M.saveAggregationScript = function(fullState)
         --submit job with dependency
         local current_job = os.getenv('SLURM_ARRAY_JOB_ID')
         if current_job then
-          local command = string.format('cd %s && mySubmit -l mem=8,job_dep=%s %s',paths.dirname(aggregationScript), paths.basename(aggregationScript),current_job )
+          local command = string.format('cd %s && mySubmit -l mem=8,job_dep=%s %s',paths.dirname(aggregationScript), current_job, paths.basename(aggregationScript))
           os.execute(command)
           print(string.format('Executing command:\n%s',command))
         else
@@ -329,7 +329,6 @@ M.saveAggregationScript = function(fullState)
       outFile:write(codeTemplate)
       io.close(outFile)
       print('Created agg scripts at file://' .. aggregationScript)
-      _fbd.enter()
     else
       print(string.format("\nAggregation script already found, this job won't write to:\n%s\n",aggregationScript))
     end
@@ -382,6 +381,11 @@ M.saveForRNGSweep = function(fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
+
+	--just in case
+	if fullState.args.agg_results >= 0 then 
+		M.saveAggregationScript(fullState)
+	end
  end
 
 M.saveForRNGSweepOLD= function(fullState)

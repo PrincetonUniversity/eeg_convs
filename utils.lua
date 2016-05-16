@@ -139,8 +139,6 @@ M.normalizeAndPCAData = function(data, percent_variance_to_keep, mean_, std_, tr
  
 end
 
-M.normalizeAndPCADataByTimepoint = function(data, timepoint_dim, mean_, std_, do_pca, eigenvectors_)
-  error('Not yet implemented')
 M.doesFileExist = function(filename)
   local f = io.open(filename,'r')
   if f ~= nil then
@@ -151,7 +149,6 @@ M.doesFileExist = function(filename)
   end
 end
 
-end
 
 
 M.populateArgsBasedOnJobNumber = function(args)
