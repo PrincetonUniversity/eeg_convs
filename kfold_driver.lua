@@ -95,6 +95,14 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
     table.insert(args.training.trainingIterationHooks, sleep_eeg.hooks.decrease_learning_rate)
   end
 
+  if args.num_test_permutations > 0 then
+    local permuteTest = function(state) 
+      sleep_eeg.hooks.permuteTestData(state,  args.num_test_permutations, subj_data.classnames)
+    end
+    table.insert(args.training.trainingIterationHooks, permuteTest)
+  end
+
+
   --Training Completed Hooks
   --------------------------
   args.training.trainingCompleteHooks[1] = function(state)
@@ -113,6 +121,11 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
   --Periodic Logging Hooks
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
+
+  if args.agg_results >= 0 then
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
+  end
 
   --if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
 	  --and cmdOptions.num_hidden_mult == 1 then 
@@ -188,6 +201,11 @@ M.setRegressionOptimizationHooks = function(state, subj_data, args, cmdOptions)
   --Periodic Logging Hooks
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
+
+  if args.agg_results >= 0 then
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
+  end
 
   if not cmdOptions.dont_save_network then
     table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveNetwork)
@@ -312,6 +330,7 @@ local initArgs = function()
   cmd:option('-iterations_decrease_LR', 0, 'after how many iterations should we decrease our learning rate; 0 = constant learning rate')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-shuffle_data', false, 'whether or not we should shuffle trials e.g. for generating a random permutation ')
+  cmd:option('-num_test_permutations', 0, 'how many times we should shuffle test labels at each iteration, generating a per-iteration null distribution. only done if set to value greater than 0')
   cmd:option('-predict_delta_memory', false, 'whether or not we should predict change in memory instead of stimulus identity. not compatible with -predict_subj flag')
   cmd:option('-weight_loss_function', false, 'whether or not we should weight training examples inversely proportional to their image presentation number (works for sleep only) ')
   cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
@@ -322,6 +341,8 @@ local initArgs = function()
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
   cmd:option('-min_presentations', -1, 'number of min presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
+  cmd:option('-agg_results', -1, 'should we write out a script that aggregates results. < 0 = no, 0 = kfold aggregation, 1 = null permutation aggregation')
+  cmd:option('-launch_agg_job', false, 'whether or not to launch agg job when using -agg_results flag. if false, we create, but do not run, the aggregation script')
   --temporal smoothing parameters
   cmd:option('-smooth_std', -1, "for max temp conv, should we smooth output of convolution (smooth_std > 0) and if so, what's the std of our gaussian?")
   cmd:option('-smooth_width', 5, "if we're smoothing (smooth_std > 0), how many non-zero elements do we have in our gaussian filter? must be odd number >= 3")
@@ -370,6 +391,9 @@ M.generalDriver = function()
   args.iterate_smoothing = cmdOptions.iterate_smoothing
   args.miniBatchSize = cmdOptions.mini_batch_size
   args.weight_loss_function = cmdOptions.weight_loss_function
+  args.num_test_permutations = cmdOptions.num_test_permutations
+  args.agg_results = cmdOptions.agg_results
+  args.launch_agg_job = cmdOptions.launch_agg_job
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')

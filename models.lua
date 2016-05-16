@@ -94,8 +94,8 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 		prev = nn.View(-1):setNumInputDims(2)(prev)
 		local toClasses = {}
 		local toSubjects = {}
+	  local lastLayer = numTotalFeatures
 		if numHiddenLayers > 1 then
-			local lastLayer = numTotalFeatures
 			for hiddenLayerIdx = 1, numHiddenLayers-1 do
 				prev = nn.Linear(lastLayer,numHiddenUnits)(prev)
 				prev = hiddenActivationFn()(prev)
@@ -103,12 +103,12 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 			end
 
 			--now we split
-			toClasses = nn.Linear(numHiddenUnits,numOutputClasses)(prev)
-			toSubjects = nn.Linear(numHiddenUnits, numSubjects)(prev)
+			toClasses = nn.Linear(lastLayer,numOutputClasses)(prev)
+			toSubjects = nn.Linear(lastLayer, numSubjects)(prev)
 		else
 
-			toClasses = nn.Linear(numTotalFeatures,numOutputClasses)(prev)
-			toSubjects = nn.Linear(numTotalFeatures, numSubjects)(prev)
+			toClasses = nn.Linear(lastLayer,numOutputClasses)(prev)
+			toSubjects = nn.Linear(lastLayer, numSubjects)(prev)
 		end
 		toClasses = nn.LogSoftMax()(toClasses)
 		toSubjects = nn.LogSoftMax()(toSubjects)
@@ -153,8 +153,8 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 		end
 		model:add(nn.View(-1):setNumInputDims(2)) --flatten
 
+	  local lastLayer = numTotalFeatures
 		if numHiddenLayers > 1 then
-			local lastLayer = numTotalFeatures
 			for hiddenLayerIdx = 1, numHiddenLayers-1 do
 				model:add(nn.Linear(lastLayer,numHiddenUnits))
 				model:add(hiddenActivationFn())
@@ -167,11 +167,11 @@ M.createFullyConnectedNetwork = function(egInputBatch, numHiddenUnits,
 
     local criterion
     if not net_args.predict_delta_memory then
-			model:add(nn.Linear(numTotalFeatures,numOutputClasses))
+			model:add(nn.Linear(lastLayer,numOutputClasses))
       model:add(nn.LogSoftMax())
       criterion = nn.ClassNLLCriterion()
     else
-			model:add(nn.Linear(numTotalFeatures,1))
+			model:add(nn.Linear(lastLayer,1))
       criterion = nn.MSECriterion(true)
     end
 		if net_args.cuda then
