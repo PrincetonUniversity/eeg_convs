@@ -135,13 +135,221 @@ M.saveForSNRSweep = function (fullState)
 	--print('Final Test Class Acc: '  .. output.testClassAcc[fullState.trainingIteration])
 end
 
+M.saveAggregationScript = function(fullState)
+
+  if fullState.aggregationScriptWritten then
+    return
+  end
+
+  local classAccVarNames = {}
+  local confusionMatrices = {}
+  local numClassesPerConfMatrix = {}
+
+  --add accuracy and the confusion matrices behind them
+  for k,v in pairs(fullState.plotting.accuracy) do
+    classAccVarNames[#classAccVarNames+1] = v
+    if fullState[k] and fullState[k].mat then --confusion matrix
+      confusionMatrices[#confusionMatrices+1] = k
+      numClassesPerConfMatrix[#numClassesPerConfMatrix+1] = fullState[k].mat:size(1)
+    end
+  end
+
+	local newSaveFile
+	if fullState.args.subj_data and fullState.args.subj_data.run_single_subj then
+		newSaveFile = sleep_eeg.utils.insertDirToSaveFile(fullState.args.save_file, fullState.data:getSubjID())
+	else
+		newSaveFile = fullState.args.save_file
+	end
+
+	local matFileOut = sleep_eeg.utils.replaceTorchSaveWithMatSave(newSaveFile)
+ 
+  --here we write a file that will aggregate any kfold result
+  local numFolds = fullState.args.subj_data.num_folds or 12
+  if numFolds then
+    local aggregationScript = sleep_eeg.utils.removeFoldNumber(sleep_eeg.utils.replaceMinuses(sleep_eeg.utils.replaceTorchSaveWithMSave(newSaveFile)), fullState.args.subj_data.fold_num, fullState.args.subj_data.num_folds)
+    local totalTrials = fullState.args.training.maxTrainingIterations
+    if not sleep_eeg.utils.doesFileExist(aggregationScript) then
+      local outFile = io.open(aggregationScript, 'w')
+      outFile:write('\n') --just to get it on disk
+      io.close(outFile)
+
+      --here we declare helper functions that return strings of matlab code for loading, 
+      --aggregating, averaging, and plotting all the variables we end up saving
+      -----------------------------------------------------------------------------------
+      --declaring aggregators
+      local declare_accuracy_aggregator = function(var_name)
+        return string.format('%% dims = # folds, # trials\n%s_agg = zeros(%d,%d);\n\n',var_name, numFolds, totalTrials)
+      end
+
+      local declare_conf_matrix_aggregator = function(var_name, numClassesConfMatrix)
+        return string.format('%% dims = # folds, # conf matrix classes, # conf matrix classes\n%s_agg = zeros(%d,%d,%d);\n\n',var_name, numFolds, numClassesConfMatrix, numClassesConfMatrix)
+      end
+
+      --loading folds results into aggregator
+      local aggregate_conf_matrix = function(var_name,fold_idx_var)
+        return string.format('%s_agg(%s,:,:) = %s;\n',var_name, fold_idx_var, var_name)
+      end
+
+      --this is used to put a variable into the aggregated variable, run inside a for loop over folds
+      local aggregate_accuracy = function(var_name, fold_idx_var)
+        return string.format('%s_agg(%s,:) = %s;\n',var_name, fold_idx_var, var_name)
+      end
+
+      --taking mean of aggregated data across folds
+      local collapse_accuracy_and_conf_matrix = function(var_name,fn_name)
+        return string.format('%s_%s = squeeze(%s(%s_agg,1));\n',var_name, fn_name, fn_name, var_name)
+      end
+
+      local subplot_and_imagesc = function(var_name, subplot_size, subplot_idx)
+        return string.format("subplot(%d,%d,%d);\nimagesc_text(%s); title('%s');\n", subplot_size, subplot_size, subplot_idx, var_name, var_name)
+      end
+      local simple_line_plot = function(var_name)
+        return string.format("plot(%s); title('%s');\n", var_name, var_name)
+      end
+
+      local save_plot_and_close_figure = function(save_name)
+        return string.format("print(gcf,'-dpng','-painters','%s.png');\nclose(gcf);\n\n",save_name)
+        --return string.format("export_fig(gcf,'%s.png');\nclose(gcf);\n\n",save_name)
+      end
+
+      --reopen it
+      outFile = io.open(aggregationScript, 'w')
+
+      --set our aggregate variable declarations
+      --comment our auto-generated code
+      local codeTemplate = "% let's declare the variable that we'll use to aggregate results over folds\n"
+
+      for idx, var in ipairs(classAccVarNames) do
+        codeTemplate = codeTemplate .. declare_accuracy_aggregator(var)
+      end
+
+      for idx, var in ipairs(confusionMatrices) do
+        codeTemplate = codeTemplate .. declare_conf_matrix_aggregator(var, numClassesPerConfMatrix[idx])
+      end
+
+      --write the name of the .mat files for each fold to a cell array so we can iteratively load them
+      codeTemplate = codeTemplate .. '\nresult_MAT_files = {'
+      local newMatFile = sleep_eeg.utils.replaceTorchSaveWithMatSave(newSaveFile)
+      for fold_idx = 1, numFolds do
+        codeTemplate = codeTemplate .. "'" .. sleep_eeg.utils.replaceFoldNumber(newMatFile, fullState.args.subj_data.fold_num or 1, fold_idx) .. "' ... \n "
+      end
+      codeTemplate = codeTemplate .. '};\n'
+
+      codeTemplate = codeTemplate .. string.format('%% now we aggregate over all our folds, loading each saved .mat file in turn\n' ..
+        'for fold_idx = 1 : %d;\n\tload(result_MAT_files{fold_idx});\n', numFolds)
+
+      --aggregating code
+      for idx, var in ipairs(classAccVarNames) do
+        codeTemplate = codeTemplate .. '\t' .. aggregate_accuracy(var, 'fold_idx')
+      end
+
+      for idx, var in ipairs(confusionMatrices) do
+        codeTemplate = codeTemplate ..'\t' ..  aggregate_conf_matrix(var, 'fold_idx')
+      end
+
+      --finish for loop for aggregation
+      codeTemplate = codeTemplate .. 'end\n\n'
+
+      --now we take the average and std across the folds
+      codeTemplate = codeTemplate .. '% take average and std across folds\n'
+
+      for idx, var in ipairs(classAccVarNames) do
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean')
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std')
+      end
+
+      for idx, var in ipairs(confusionMatrices) do
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean')
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std')
+      end
+
+      --finally we generate figures:
+      --one figure with confusion matrices as imagesc (MEAN)
+      --one figure with confusion matrices as imagesc (STD)
+      --one figure with the average over all folds
+      --one figure with the std over all folds
+      --one figure with the per-fold plots for each variable
+
+      codeTemplate = codeTemplate .. string.format("%% add useful toolbox functions;\n addpath(genpath('%s'));\n", sleep_eeg.utils.getMatlabUtilPath())
+      codeTemplate = codeTemplate .. "%set plotting defaults\n" .. 
+        "set(0,'DefaultFigurePosition',[2100 900 2000 1000],'DefaultLineLineWidth',4,'DefaultAxesFontSize',36,'DefaultTextFontSize',48, 'DefaultFigureVisible', 'off');\n"
+
+      local numConfSubplots = math.ceil(math.sqrt(#confusionMatrices))
+      --conf matrix mean
+      codeTemplate = codeTemplate .. '\n% plot avg confusion matrices with imagesc\nfigure(1);\n'
+      for subplot_idx, var in ipairs(confusionMatrices) do 
+        codeTemplate = codeTemplate .. subplot_and_imagesc(var .. '_mean', numConfSubplots, subplot_idx)
+      end
+      codeTemplate = codeTemplate .. save_plot_and_close_figure('confusionMatrix_means')
+
+      --conf matrix mean
+      codeTemplate = codeTemplate .. '\n% plot std confusion matrices with imagesc\nfigure(1);\n'
+      for subplot_idx, var in ipairs(confusionMatrices) do 
+        codeTemplate = codeTemplate .. subplot_and_imagesc(var .. '_std', numConfSubplots, subplot_idx)
+      end
+      codeTemplate = codeTemplate .. save_plot_and_close_figure('confusionMatrix_std')
+
+      --plot average across folds
+      codeTemplate = codeTemplate .. '\n% plot avg accuracies across folds\nfigure(1); hold all;\n'
+      for subplot_idx, var in ipairs(classAccVarNames) do 
+        codeTemplate = codeTemplate .. simple_line_plot(var .. '_mean')
+      end
+      codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc_mean')
+
+      --plot std across folds
+      codeTemplate = codeTemplate .. '\n% plot std accuracies across folds\nfigure(1); hold all;\n'
+      for subplot_idx, var in ipairs(classAccVarNames) do 
+        codeTemplate = codeTemplate .. simple_line_plot(var .. '_std')
+      end
+      codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc_std')
+
+      --one figure with the per-fold plots for each variable
+      codeTemplate = codeTemplate .. '\n% plot accuracies for each fold separately\n'
+      for subplot_idx, var in ipairs(classAccVarNames) do 
+        --create new plot for this variable
+        codeTemplate = codeTemplate .. 'figure(1); hold all;\n'
+        for fold_idx = 1, numFolds do
+          codeTemplate = codeTemplate .. simple_line_plot( string.format("squeeze(%s(%d,:))",var,fold_idx))
+        end
+        codeTemplate = codeTemplate .. save_plot_and_close_figure(var .. '_all_folds') .. '\n'
+      end
+
+      if fullState.args.launch_agg_job then
+        --submit job with dependency
+        local current_job = os.getenv('SLURM_ARRAY_JOB_ID')
+        if current_job then
+          local command = string.format('cd %s && mySubmit -l mem=8,job_dep=%s %s',paths.dirname(aggregationScript), paths.basename(aggregationScript),current_job )
+          os.execute(command)
+          print(string.format('Executing command:\n%s',command))
+        else
+          print(string.format('Could not get current job id and therefore cannot launch aggregation script located at:\n%s',aggregationScript))
+        end
+      end
+      
+      outFile:write(codeTemplate)
+      io.close(outFile)
+      print('Created agg scripts at file://' .. aggregationScript)
+      _fbd.enter()
+    else
+      print(string.format("\nAggregation script already found, this job won't write to:\n%s\n",aggregationScript))
+    end
+
+  end
+
+  fullState.aggregationScriptWritten = true
+
+end
+
 M.saveForRNGSweep = function(fullState)
 	local matio = require 'matio' 
 	local output ={}
   --add losses
+  --we always have our trainLoss, sometimes we want to add validation or test loss
 	output.trainLoss = fullState.trainSetLoss
-  for k,v in pairs(fullState.plotting.losses) do
-    output[k] = fullState[v]
+  if fullState.plotting.losses then
+    for k,v in pairs(fullState.plotting.losses) do
+      output[k] = fullState[v]
+    end
   end
 
   --add accuracy and the confusion matrices behind them
@@ -174,12 +382,7 @@ M.saveForRNGSweep = function(fullState)
 	matio.save(matFileOut, output)
 	print('Saved .mat file to: ' .. matFileOut)
 	print('____________________________________________________')
-  --if not fullState.args.subj_data.predict_subj then --just annoying to do otherwise
-    --print('Final Train Class Acc: '  .. output.trainClassAcc[fullState.trainingIteration])
-    --print('Final Valid Class Acc: '  .. output.validClassAcc[fullState.trainingIteration])
-  --end
-
-end
+ end
 
 M.saveForRNGSweepOLD= function(fullState)
 	local matio = require 'matio' 

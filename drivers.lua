@@ -106,6 +106,11 @@ M.setClassificationOptimizationHooks = function(state, subj_data, args, cmdOptio
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
 
+  if args.agg_results >= 0 then
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
+  end
+
   --if string.match(cmdOptions.network_type, 'max') and not string.match(cmdOptions.network_type, 'no_max') and not cmdOptions.predict_subj 
 	  --and cmdOptions.num_hidden_mult == 1 then 
     --args.training.periodicLogHooks[2] =  sleep_eeg.hooks.getDistributionOfMaxTimepoints
@@ -176,6 +181,11 @@ M.setRegressionOptimizationHooks = function(state, subj_data, args, cmdOptions)
   --Periodic Logging Hooks
   --------------------------
   args.training.periodicLogHooks[1] = sleep_eeg.hooks.plotForRNGSweep
+
+  if args.agg_results >= 0 then
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveForRNGSweep)
+    table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveAggregationScript)
+  end
 
   if not cmdOptions.dont_save_network then
     table.insert(args.training.periodicLogHooks, sleep_eeg.hooks.saveNetwork)
@@ -312,6 +322,8 @@ local initArgs = function()
   cmd:option('-ERP_I', false, 'whether or not use ERP_I data')
   cmd:option('-min_presentations', -1, 'number of min presentations, only valid for sleep data; -1 will use all cue presentations')
   cmd:option('-max_presentations', -1, 'number of max presentations, only valid for sleep data; -1 will use all cue presentations')
+  cmd:option('-agg_results', -1, 'should we write out a script that aggregates results. < 0 = no, 0 = kfold aggregation, 1 = null permutation aggregation')
+  cmd:option('-launch_agg_job', false, 'whether or not to launch agg job when using -agg_results flag. if false, we create, but do not run, the aggregation script')
   --temporal smoothing parameters
   cmd:option('-smooth_std', -1, "for max temp conv, should we smooth output of convolution (smooth_std > 0) and if so, what's the std of our gaussian?")
   cmd:option('-smooth_width', 5, "if we're smoothing (smooth_std > 0), how many non-zero elements do we have in our gaussian filter? must be odd number >= 3")
@@ -334,7 +346,6 @@ local initArgs = function()
   cmd:option('-temp_max_pool_strides', '2', 'comma-separated list of TEMPORAL max-pool strides, use -1 to disable for given layer')
   cmd:option('-l1_penalty', 0, 'L1 penalty')
   cmd:option('-l2_penalty', 0, 'L2 penalty')
-  
  
   cmd:text()
   opt = cmd:parse(arg)
@@ -360,6 +371,8 @@ M.generalDriver = function()
   args.iterate_smoothing = cmdOptions.iterate_smoothing
   args.miniBatchSize = cmdOptions.mini_batch_size
   args.weight_loss_function = cmdOptions.weight_loss_function
+  args.agg_results = cmdOptions.agg_results
+  args.launch_agg_job = cmdOptions.launch_agg_job
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')

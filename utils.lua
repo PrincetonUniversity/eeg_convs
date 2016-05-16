@@ -141,6 +141,16 @@ end
 
 M.normalizeAndPCADataByTimepoint = function(data, timepoint_dim, mean_, std_, do_pca, eigenvectors_)
   error('Not yet implemented')
+M.doesFileExist = function(filename)
+  local f = io.open(filename,'r')
+  if f ~= nil then
+    io.close(f)
+    return true
+  else
+    return false
+  end
+end
+
 end
 
 
@@ -239,6 +249,10 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
     filename = filename .. '_' .. args.training.percentDecreaseLR .. 'lrDecayEvery' .. args.training.iterationsDecreaseLR
   end
 
+  if args.subj_data.num_folds then
+    filename = filename .. 'Fold' .. args.subj_data.fold_num .. 'of' .. args.subj_data.num_folds
+  end
+
   filename = filename ..'.th7'
 
 	local fullFilename = paths.concat(fullPath,filename)
@@ -269,6 +283,31 @@ M.replaceTorchSaveWithNetSave = function(torchFilename, suffix)
 	end
 end
 
+M.replaceTorchSaveWithMSave = function(torchFilename)
+	local dir = paths.dirname(torchFilename)
+	local baseFilename = paths.basename(torchFilename,'.th7')
+	return paths.concat(dir,baseFilename .. '.m')
+end
+
+M.replaceFoldNumber = function(saveFile, oldFoldNum, newFoldNum)
+  local matchString = 'Fold' .. oldFoldNum .. 'of'
+  local newString = 'Fold' .. newFoldNum .. 'of'
+  return string.gsub(saveFile, matchString, newString)
+end
+
+M.removeFoldNumber = function(saveFile, oldFoldNum, numFolds)
+  local matchString = 'Fold' .. oldFoldNum .. 'of' .. numFolds
+  return string.gsub(saveFile, matchString, '')
+end
+
+M.replaceMinuses = function(saveFile)
+  return string.gsub(saveFile, '-', '_')
+end
+
+M.getMatlabUtilPath = function()
+  require 'lfs'
+  return lfs.currentdir() .. '/matlab_utils/'
+end
 
 M.replaceTorchSaveWithMatSave = function(torchFilename)
 	local dir = paths.dirname(torchFilename)
@@ -617,7 +656,7 @@ M.makeConfigName = function(args, cmdOptions)
   name = name .. '_' .. cmdOptions.ms .. 'ms'
 
   if cmdOptions.num_folds then
-    name = name .. 'Fold' .. args.subj_data.fold_num .. 'of' .. args.subj_data.num_folds
+    name = name .. args.subj_data.num_folds .. 'Folds'
   end
 
   if args.subj_data.ERP_diff then
