@@ -686,7 +686,7 @@ M.makeConfigName = function(args, cmdOptions)
   end
 
   if cmdOptions.pca then
-    name = name .. string.format('PCA%0.2f', cmdOptions.percent_pca_variance_to_keep)
+    name = name .. string.format('PCA%0.10f', cmdOptions.percent_pca_variance_to_keep)
   end
 
   return name

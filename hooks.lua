@@ -208,9 +208,29 @@ M.saveAggregationScript = function(fullState)
         return string.format("plot(%s); title('%s');\n", var_name, var_name)
       end
 
-      local plot_with_errorbars = function(mean_var_name, std_var_name, num_folds)
-        return string.format("boundedline(1:size(%s,2),%s,1.96*%s/(math.sqrt(%d-1)),'alpha'); title('%s');\n", mean_var_name, mean_var_name, std_var_name, num_folds)
-      end
+	  local plot_with_errorbars = function(var_names, num_folds)
+		  local plot_str =  "boundedline(" 
+
+		  for idx, var_name in ipairs(var_names) do
+			  local mean_var_name = var_name .. '_mean'
+			  local std_var_name = var_name .. '_std'
+			  plot_str = plot_str .. string.format("1:size(%s,2),%s,1.96*%s/(sqrt(%d-1)),", mean_var_name, mean_var_name, std_var_name, num_folds)
+		  end
+		  --wrap up the call to boundedline
+		  plot_str = plot_str .. string.format("'alpha','cmap', jet(%d));\n", #var_names)
+
+		  return plot_str
+	  end
+
+	  local generate_legend_for_vars = function(vars_as_dic)
+		  local cell_array_str = "legend({"
+		  print(vars_as_dic)
+		  for idx, var_name in ipairs(vars_as_dic) do
+			  cell_array_str = cell_array_str .. "' " ..  var_name .. "' "
+		  end
+		  cell_array_str = cell_array_str .. "},'Location','Best');\n"
+		  return cell_array_str
+	  end
 
       local save_plot_and_close_figure = function(save_name)
         return string.format("print(gcf,'-dpng','-painters','%s.png');\nclose(gcf);\n\n",save_name)
@@ -276,7 +296,7 @@ M.saveAggregationScript = function(fullState)
 
       codeTemplate = codeTemplate .. string.format("%% add useful toolbox functions;\n addpath(genpath('%s'));\n", sleep_eeg.utils.getMatlabUtilPath())
       codeTemplate = codeTemplate .. "%set plotting defaults\n" .. 
-        "set(0,'DefaultFigurePosition',[2100 900 2000 1000],'DefaultLineLineWidth',4,'DefaultAxesFontSize',36,'DefaultTextFontSize',48, 'DefaultFigureVisible', 'off');\n"
+		"set(0,'DefaultFigurePosition',[2100 900 2000 1000],'DefaultLineLineWidth',4,'DefaultFigureVisible', 'off');\n"
 
       local numConfSubplots = math.ceil(math.sqrt(#confusionMatrices))
       --conf matrix mean
@@ -284,6 +304,7 @@ M.saveAggregationScript = function(fullState)
       for subplot_idx, var in ipairs(confusionMatrices) do 
         codeTemplate = codeTemplate .. subplot_and_imagesc(var .. '_mean', numConfSubplots, subplot_idx)
       end
+	  codeTemplate = codeTemplate .. generate_legend_for_vars(confusionMatrices)
       codeTemplate = codeTemplate .. save_plot_and_close_figure('confusionMatrix_means')
 
       --conf matrix mean
@@ -291,13 +312,16 @@ M.saveAggregationScript = function(fullState)
       for subplot_idx, var in ipairs(confusionMatrices) do 
         codeTemplate = codeTemplate .. subplot_and_imagesc(var .. '_std', numConfSubplots, subplot_idx)
       end
+	  codeTemplate = codeTemplate .. generate_legend_for_vars(confusionMatrices)
       codeTemplate = codeTemplate .. save_plot_and_close_figure('confusionMatrix_std')
 
       --plot average with error bars across folds
       codeTemplate = codeTemplate .. '\n% plot avg accuracies across folds\nfigure(1); hold all;\n'
-      for subplot_idx, var in ipairs(classAccVarNames) do 
-        codeTemplate = codeTemplate .. plot_with_errorbars(var .. '_mean', var .. '_std', numFolds)
-      end
+	  codeTemplate = codeTemplate .. plot_with_errorbars(classAccVarNames, numFolds)
+      --for subplot_idx, var in ipairs(classAccVarNames) do 
+        --codeTemplate = codeTemplate .. plot_with_errorbars(var .. '_mean', var .. '_std', numFolds)
+      --end
+	  codeTemplate = codeTemplate .. generate_legend_for_vars(classAccVarNames)
       codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc')
 
       --one figure with the per-fold plots for each variable
@@ -305,11 +329,23 @@ M.saveAggregationScript = function(fullState)
       for subplot_idx, var in ipairs(classAccVarNames) do 
         --create new plot for this variable
         codeTemplate = codeTemplate .. 'figure(1); hold all;\n'
+	    local legendValues = {}
+
         for fold_idx = 1, numFolds do
-          codeTemplate = codeTemplate .. simple_line_plot( string.format("squeeze(%s(%d,:))",var,fold_idx))
+          codeTemplate = codeTemplate .. simple_line_plot( string.format("squeeze(%s(%d,:))",var .. '_agg',fold_idx))
+		  legendValues[fold_idx] = 'Fold ' .. fold_idx
         end
+	    codeTemplate = codeTemplate .. generate_legend_for_vars(legendValues)
         codeTemplate = codeTemplate .. save_plot_and_close_figure(var .. '_all_folds') .. '\n'
       end
+
+	  --finally, if everything's gone well, then let's delete this aggregation script
+	  codeTemplate = codeTemplate .. "% Finally, let's move this file so we can re-run script aggegation easily\n"
+	  codeTemplate = codeTemplate .. string.format("unix('mv %s %s.launched');\n", aggregationScript, aggregationScript)
+
+      outFile:write(codeTemplate)
+      io.close(outFile)
+      print('Created agg scripts at file://' .. aggregationScript)
 
       if fullState.args.launch_agg_job then
         --submit job with dependency
@@ -322,10 +358,9 @@ M.saveAggregationScript = function(fullState)
           print(string.format('Could not get current job id and therefore cannot launch aggregation script located at:\n%s',aggregationScript))
         end
       end
+
+
       
-      outFile:write(codeTemplate)
-      io.close(outFile)
-      print('Created agg scripts at file://' .. aggregationScript)
     else
       print(string.format("\nAggregation script already found, this job won't write to:\n%s\n",aggregationScript))
     end

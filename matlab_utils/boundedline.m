@@ -319,11 +319,13 @@ else
     [hp,hl] = deal(gobjects(nline,1));
 end
 
+
 axes(hax);
 hold all;
 
 for iln = 1:nline
     hp(iln) = patch(xp{iln}, yp{iln}, ptchcol{iln}, 'facealpha', alpha{iln}, 'edgecolor', 'none');
+    set(get(get(hp(iln),'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
 end
 
 for iln = 1:nline
