@@ -203,8 +203,13 @@ M.saveAggregationScript = function(fullState)
       local subplot_and_imagesc = function(var_name, subplot_size, subplot_idx)
         return string.format("subplot(%d,%d,%d);\nimagesc_text(%s); title('%s');\n", subplot_size, subplot_size, subplot_idx, var_name, var_name)
       end
+
       local simple_line_plot = function(var_name)
         return string.format("plot(%s); title('%s');\n", var_name, var_name)
+      end
+
+      local plot_with_errorbars = function(mean_var_name, std_var_name, num_folds)
+        return string.format("boundedline(1:size(%s,2),%s,1.96*%s/(math.sqrt(%d-1)),'alpha'); title('%s');\n", mean_var_name, mean_var_name, std_var_name, num_folds)
       end
 
       local save_plot_and_close_figure = function(save_name)
@@ -266,8 +271,7 @@ M.saveAggregationScript = function(fullState)
       --finally we generate figures:
       --one figure with confusion matrices as imagesc (MEAN)
       --one figure with confusion matrices as imagesc (STD)
-      --one figure with the average over all folds
-      --one figure with the std over all folds
+      --one figure with the average over all folds with error bars
       --one figure with the per-fold plots for each variable
 
       codeTemplate = codeTemplate .. string.format("%% add useful toolbox functions;\n addpath(genpath('%s'));\n", sleep_eeg.utils.getMatlabUtilPath())
@@ -289,19 +293,12 @@ M.saveAggregationScript = function(fullState)
       end
       codeTemplate = codeTemplate .. save_plot_and_close_figure('confusionMatrix_std')
 
-      --plot average across folds
+      --plot average with error bars across folds
       codeTemplate = codeTemplate .. '\n% plot avg accuracies across folds\nfigure(1); hold all;\n'
       for subplot_idx, var in ipairs(classAccVarNames) do 
-        codeTemplate = codeTemplate .. simple_line_plot(var .. '_mean')
+        codeTemplate = codeTemplate .. plot_with_errorbars(var .. '_mean', var .. '_std', numFolds)
       end
-      codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc_mean')
-
-      --plot std across folds
-      codeTemplate = codeTemplate .. '\n% plot std accuracies across folds\nfigure(1); hold all;\n'
-      for subplot_idx, var in ipairs(classAccVarNames) do 
-        codeTemplate = codeTemplate .. simple_line_plot(var .. '_std')
-      end
-      codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc_std')
+      codeTemplate = codeTemplate .. save_plot_and_close_figure('classAcc')
 
       --one figure with the per-fold plots for each variable
       codeTemplate = codeTemplate .. '\n% plot accuracies for each fold separately\n'
