@@ -302,6 +302,7 @@ local initArgs = function()
   cmd:option('-iterations_decrease_LR', 0, 'after how many iterations should we decrease our learning rate; 0 = constant learning rate')
   cmd:option('-predict_subj', false, 'whether or not we should additionally predict subjects')
   cmd:option('-shuffle_data', false, 'whether or not we should shuffle trials e.g. for generating a random permutation ')
+  cmd:option('-num_shuffled_perms', 1, 'the number of shuffled permutations being launched with this job. only relevant, when shuffle_data and -agg_results flags are true.')
   cmd:option('-predict_delta_memory', false, 'whether or not we should predict change in memory instead of stimulus identity. not compatible with -predict_subj flag')
   cmd:option('-weight_loss_function', false, 'whether or not we should weight training examples inversely proportional to their image presentation number (works for sleep only) ')
   cmd:option('-class_to_subj_loss_ratio', 2, 'how many times more we care about the class loss compared to the subj loss when -predict_subj is set')
@@ -363,6 +364,7 @@ M.generalDriver = function()
   args.weight_loss_function = cmdOptions.weight_loss_function
   args.agg_results = cmdOptions.agg_results
   args.launch_agg_job = cmdOptions.launch_agg_job
+  args.num_shuffled_perms = cmdOptions.num_shuffled_perms
 
   if args.float_precision then
 	  torch.setdefaulttensortype('torch.FloatTensor')

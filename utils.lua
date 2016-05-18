@@ -180,7 +180,8 @@ M.populateArgsBasedOnJobNumber = function(args)
 	  gridOptions['D_smooth_step'] = smooth_steps
   end
 
-  gridOptions['Y_rng_seed'] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40}
+  --we're limited to 100000 random seed values
+  gridOptions['Y_rng_seed'] = torch.range(1,100000):long():totable()
 
 	local job_number = os.getenv('SLURM_ARRAY_TASK_ID')
 	if not job_number then

@@ -297,18 +297,19 @@ function CVBySubjData:__splitDataAcrossSubjs(...)
 
   --this code lets us shuffle our data: either we use the REAL indices corresponding
   --to the train/valid/test trials when we select our labels/subject_ids/extra fields,
-  --which i'm calling metadata, OR we shuffle the indices
+  --which i'm calling metadata, OR we shuffle the indices.
+  --HOWEVER, we only want to shuffle the training data
   local trainMetaDataIdxes, validMetaDataIdxes, testMetaDataIdxes
-  function getMetaDataIdxes(realIdxes)
-    if self.shuffle_data then
+  function getMetaDataIdxes(realIdxes, isTrain)
+    if self.shuffle_data and isTrain then --we only want to shuffle the training data
       return torch.gather(realIdxes, 1, torch.randperm(realIdxes:numel()):long())
     else
       return realIdxes
     end
   end
-  trainMetaDataIdxes = getMetaDataIdxes(allTrain)
-  validMetaDataIdxes = getMetaDataIdxes(allValid)
-  testMetaDataIdxes = getMetaDataIdxes(allTest)
+  trainMetaDataIdxes = getMetaDataIdxes(allTrain, true)
+  validMetaDataIdxes = getMetaDataIdxes(allValid, false)
+  testMetaDataIdxes = getMetaDataIdxes(allTest, false)
 
   --finally let's consolidate our data
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
@@ -555,17 +556,17 @@ function CVBySubjData:__kFoldCrossValAcrossSubjs(...)
 
   --this code lets us shuffle our data: either we use the REAL indices corresponding
   --to the train/valid/test trials when we select our labels/subject_ids/extra fields,
-  --which i'm calling metadata, OR we shuffle the indices
+  --which i'm calling metadata, OR we shuffle the indices.
   local trainMetaDataIdxes, testMetaDataIdxes
-  function getMetaDataIdxes(realIdxes)
-    if self.shuffle_data then
+  function getMetaDataIdxes(realIdxes, isTrain)
+    if self.shuffle_data and isTrain then --we only want to shuffle the training data
       return torch.gather(realIdxes, 1, torch.randperm(realIdxes:numel()):long())
     else
       return realIdxes
     end
   end
-  trainMetaDataIdxes = getMetaDataIdxes(allTrain)
-  testMetaDataIdxes = getMetaDataIdxes(allTest)
+  trainMetaDataIdxes = getMetaDataIdxes(allTrain, true)
+  testMetaDataIdxes = getMetaDataIdxes(allTest, false)
 
   --finally let's consolidate our data
   self._train_data = CVBySubjData.__getRows(self._all_data,  allTrain)
