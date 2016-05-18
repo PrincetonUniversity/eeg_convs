@@ -298,6 +298,11 @@ M.removeFoldNumber = function(saveFile, oldFoldNum, numFolds)
   return string.gsub(saveFile, matchString, '')
 end
 
+M.removeRngSeed = function(saveFile, rngSeed)
+  local matchString = 'rng_' .. rngSeed
+  return string.gsub(saveFile, matchString, '')
+end
+
 M.replaceMinuses = function(saveFile)
   return string.gsub(saveFile, '-', '_')
 end

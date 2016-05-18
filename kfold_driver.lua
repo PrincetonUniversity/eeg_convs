@@ -356,7 +356,7 @@ local initArgs = function()
   cmd:option('-temp_max_pool_strides', '2', 'comma-separated list of TEMPORAL max-pool strides, use -1 to disable for given layer')
   cmd:option('-l1_penalty', 0, 'L1 penalty')
   cmd:option('-l2_penalty', 0, 'L2 penalty')
-  cmd:option('-rng_seed', 1, 'rng seed')
+  cmd:option('-rng_seed', -1, 'rng seed, only allows non-negative values')
 
   cmd:text()
   opt = cmd:parse(arg)
@@ -431,7 +431,7 @@ M.generalDriver = function()
   --subject_idx before we can populate subj_data
   sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
 
-  if cmdOptions.rng_seed then
+  if cmdOptions.rng_seed >= 0 then
     args.rng_seed = cmdOptions.rng_seed
   end
   if cmdOptions.subj_index ~= 0 then

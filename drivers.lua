@@ -271,7 +271,7 @@ local initArgs = function()
   cmd:text('Neural Networks for EEG')
   cmd:text()
   cmd:text('Options')
-  cmd:option('-rng_seed', 1, 'rng seed')
+  cmd:option('-rng_seed', -1, 'rng seed, only allows non-negative values')
   cmd:option('-simulated', -1, '-1 = no sim data, 1 = basic, 2 = no signal, 3 = basic + noise (not implemented yet)')
   cmd:option('-percent_train', 65, 'percent of data to use for training')
   cmd:option('-cuda', false, 'use cuda')
@@ -410,7 +410,7 @@ M.generalDriver = function()
   --subject_idx before we can populate subj_data
   sleep_eeg.utils.populateArgsBasedOnJobNumber(args)
 
-  if cmdOptions.rng_seed then
+  if cmdOptions.rng_seed >= 0 then
     args.rng_seed = cmdOptions.rng_seed
   end
   if cmdOptions.subj_index ~= 0 then

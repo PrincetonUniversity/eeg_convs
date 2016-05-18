@@ -167,7 +167,7 @@ M.saveAggregationScript = function(fullState)
   local numFolds = fullState.args.subj_data.num_folds or 12
   local numPermutations = fullState.args.num_shuffled_perms
   if numFolds then
-    local aggregationScript = sleep_eeg.utils.removeFoldNumber(sleep_eeg.utils.replaceMinuses(sleep_eeg.utils.replaceTorchSaveWithMSave(newSaveFile)), fullState.args.subj_data.fold_num, fullState.args.subj_data.num_folds)
+    local aggregationScript = sleep_eeg.utils.removeRngSeed(sleep_eeg.utils.removeFoldNumber(sleep_eeg.utils.replaceMinuses(sleep_eeg.utils.replaceTorchSaveWithMSave(newSaveFile)), fullState.args.subj_data.fold_num, fullState.args.subj_data.num_folds), fullState.args.rng_seed)
     local totalTrials = fullState.args.training.maxTrainingIterations
     if not sleep_eeg.utils.doesFileExist(aggregationScript) then
       local outFile = io.open(aggregationScript, 'w')
@@ -340,7 +340,7 @@ M.saveAggregationScript = function(fullState)
       local legendValues = {}
 
       for fold_idx = 1, numFolds do
-        codeTemplate = codeTemplate .. simple_line_plot( string.format("squeeze(%s(%d,:))",var .. '_agg',fold_idx))
+        codeTemplate = codeTemplate .. simple_line_plot( string.format("squeeze(mean(%s(%d,:,:),2))",var .. '_agg',fold_idx))
         legendValues[fold_idx] = 'Fold ' .. fold_idx
       end
       codeTemplate = codeTemplate .. generate_legend_for_vars(legendValues)
