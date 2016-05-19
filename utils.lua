@@ -231,12 +231,7 @@ M.saveFileNameFromDriversArgs = function(args,base_name)
 	end
 
 	--build filename
-  local filename 
-  if args.subj_data.shuffle_data then
-    filename  = 'SHUFFLE' 
-  else
-    filename = ''
-  end
+  local filename = ''
   filename = filename .. smoothString .. learningRateString .. '_' ..  rngSeedString 
 
   if not args.subj_data.do_kfold_split then --not applicable
@@ -693,6 +688,10 @@ M.makeConfigName = function(args, cmdOptions)
 
   if cmdOptions.pca then
     name = name .. string.format('PCA%0.10f', cmdOptions.percent_pca_variance_to_keep)
+  end
+
+  if cmdOptions.shuffle_data then
+    name  = name .. 'SHUFFLE' 
   end
 
   return name
