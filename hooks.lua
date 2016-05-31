@@ -200,8 +200,10 @@ M.saveAggregationScript = function(fullState)
       local collapse_accuracy_and_conf_matrix = function(var_name, fn_name)
         if fn_name == 'mean' then
           return string.format('%s_%s = squeeze(  %s(%s(%s_agg,2),1)  );\n',var_name, fn_name, fn_name, fn_name, var_name)
+        elseif fn_name == 'std' then
+          return string.format('%s_%s = squeeze(  %s(mean(%s_agg,2),0,1)  );\n',var_name, fn_name, fn_name, var_name)
         else
-          return string.format('%s_%s = squeeze(  %s(%s(%s_agg,0,2),0,1)  );\n',var_name, fn_name, fn_name, fn_name, var_name)
+          error('Unknown fn')
         end
       end
 
@@ -247,7 +249,15 @@ M.saveAggregationScript = function(fullState)
 
       --set our aggregate variable declarations
       --comment our auto-generated code
-      local codeTemplate = "% let's declare the variable that we'll use to aggregate results over folds\n"
+      local codeTemplate = ""
+
+      if numPermutations == 1 then
+        codeTemplate = codeTemplate .. 'hasBootStraps = false;\n'
+      else
+        codeTemplate = codeTemplate .. 'hasBootStraps = true;\n'
+      end
+
+      codeTemplate = codeTemplate .. "% let's declare the variable that we'll use to aggregate results over folds\n"
 
       for idx, var in ipairs(classAccVarNames) do
         codeTemplate = codeTemplate .. declare_accuracy_aggregator(var)
