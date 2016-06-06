@@ -197,11 +197,17 @@ M.saveAggregationScript = function(fullState)
       end
 
       --taking mean of aggregated data across folds
-      local collapse_accuracy_and_conf_matrix = function(var_name, fn_name)
+      local collapse_accuracy_and_conf_matrix = function(var_name, fn_name, numPermutations)
         if fn_name == 'mean' then
           return string.format('%s_%s = squeeze(  %s(%s(%s_agg,2),1)  );\n',var_name, fn_name, fn_name, fn_name, var_name)
         elseif fn_name == 'std' then
-          return string.format('%s_%s = squeeze(  %s(mean(%s_agg,2),0,1)  );\n',var_name, fn_name, fn_name, var_name)
+          if numPermutations ~= 1 then 
+            --take means across folds, then look at std across permutations
+            return string.format('%s_%s = squeeze(  %s(mean(%s_agg,1),0,2)  );\n',var_name, fn_name, fn_name, var_name)
+          else
+            --squeeze out permutations dimension 
+            return string.format('%s_%s = squeeze( %s(squeeze(%s_agg),0,1)  );\n',var_name, fn_name, fn_name, var_name)
+          end
         else
           error('Unknown fn')
         end
@@ -218,10 +224,11 @@ M.saveAggregationScript = function(fullState)
 	  local plot_with_errorbars = function(var_names, num_folds)
 		  local plot_str =  "boundedline(" 
 
+      local std_size = numPermutations == 1 and numFolds or numPermutations
 		  for idx, var_name in ipairs(var_names) do
 			  local mean_var_name = var_name .. '_mean'
 			  local std_var_name = var_name .. '_std'
-			  plot_str = plot_str .. string.format("1:size(%s,1),%s,1.96*%s/(sqrt(%d-1)),", mean_var_name, mean_var_name, std_var_name, num_folds)
+			  plot_str = plot_str .. string.format("1:size(%s,1),%s,1.96*%s/(sqrt(%d-1)),", mean_var_name, mean_var_name, std_var_name, std_size)
 		  end
 		  --wrap up the call to boundedline
 		  plot_str = plot_str .. string.format("'alpha','cmap', jet(%d));\n", #var_names)
@@ -297,13 +304,13 @@ M.saveAggregationScript = function(fullState)
       codeTemplate = codeTemplate .. '% take average and std across folds\n'
 
       for idx, var in ipairs(classAccVarNames) do
-        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean')
-        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std')
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean',numPermutations)
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std',numPermutations)
       end
 
       for idx, var in ipairs(confusionMatrices) do
-        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean')
-        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std')
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'mean',numPermutations)
+        codeTemplate = codeTemplate  .. collapse_accuracy_and_conf_matrix(var,'std',numPermutations)
       end
 
       --finally we generate figures:
